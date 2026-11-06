@@ -1,0 +1,34 @@
+schema: spec-driven
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the codebase.
+# Keep general project documentation and discoverable codebase facts out.
+context: |
+  所有 OpenSpec 工件（proposal / design / tasks / spec delta）一律用中文书写。
+  Windows 是主开发与目标平台；命令示例按 PowerShell 给出。
+  Rust workspace 统一 MSRV 1.94、edition 2024（根 Cargo.toml 已声明，成员不得覆盖）。
+  依赖准入红线：脚手架期零第三方依赖；此后任何第三方依赖须以独立 change 提出，proposal 明示名称/版本/许可证，默认层仅接受 Apache-2.0 / MIT。
+  propose 的输入源是 docs/brainstorming/ 基线文档链（v3 → v3.1 → 原型设计 v1.1）；引用基线小节编号而非复述全文。
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
