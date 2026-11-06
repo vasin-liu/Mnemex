@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>藏识 Mnemex — 关联图谱全屏视图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0B0E14; --glass-fill: rgba(255,255,255,0.05); --glass-fill-strong: rgba(255,255,255,0.09);
+    --glass-border: rgba(255,255,255,0.10); --text-primary:#E8ECF1; --text-secondary:#8B93A1; --text-tertiary:#565D6B;
+    --accent-jade:#6FE3C4; --accent-violet:#8A7FFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Noto Sans SC','Space Grotesk',sans-serif;
+    background: radial-gradient(1200px 700px at 20% 0%, rgba(138,127,255,0.08), transparent 55%), var(--bg-base);
+    color:var(--text-primary); min-height:100vh; padding:24px;
+  }
+  .frame{ max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:16px; height:calc(100vh - 48px); }
+  .header{ display:flex; align-items:center; gap:16px; }
+  .header h1{ font-size:16px; font-weight:500; }
+  .header .path{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-tertiary); }
+  .filters{ margin-left:auto; display:flex; gap:8px; }
+  .chip{
+    font-size:12px; padding:7px 14px; border-radius:999px; cursor:pointer;
+    background:var(--glass-fill); border:1px solid var(--glass-border); color:var(--text-secondary);
+  }
+  .chip.on{ background:rgba(111,227,196,0.12); border-color:rgba(111,227,196,0.3); color:var(--accent-jade); }
+
+  .body{ flex:1; display:grid; grid-template-columns:1fr 320px; gap:16px; min-height:0; }
+  .canvas-card{
+    background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:20px;
+    backdrop-filter: blur(18px); position:relative; overflow:hidden;
+  }
+  .legend{ position:absolute; top:18px; left:18px; display:flex; gap:16px; font-size:12px; color:var(--text-secondary); z-index:2; }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .dot{ width:8px; height:8px; border-radius:50%; }
+
+  .side{ display:flex; flex-direction:column; gap:14px; }
+  .panel{
+    background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:18px;
+    backdrop-filter:blur(16px); padding:18px;
+  }
+  .panel h3{ font-size:13px; font-weight:500; margin-bottom:10px; }
+  .panel .row{ display:flex; justify-content:space-between; padding:8px 0; border-top:1px solid rgba(255,255,255,0.05); font-size:12px; }
+  .panel .row:first-of-type{ border-top:none; }
+  .panel .row .name{ color:var(--text-primary); }
+  .panel .row .meta{ color:var(--text-tertiary); font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="header">
+    <h1>关联图谱</h1>
+    <span class="path">GatewaySyncPlanner.java</span>
+    <div class="filters">
+      <div class="chip on">全部</div>
+      <div class="chip">代码</div>
+      <div class="chip">文档</div>
+      <div class="chip">决策记录</div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="canvas-card">
+      <div class="legend">
+        <span><i class="dot" style="background:#6FE3C4"></i>文档 / 历史</span>
+        <span><i class="dot" style="background:#8A7FFF"></i>代码</span>
+      </div>
+      <svg width="100%" height="100%" viewBox="0 0 860 620">
+        <!-- edges -->
+        <line x1="430" y1="310" x2="200" y2="140" stroke="rgba(111,227,196,0.35)" stroke-width="1"/>
+        <line x1="430" y1="310" x2="640" y2="120" stroke="rgba(138,127,255,0.3)" stroke-width="1"/>
+        <line x1="430" y1="310" x2="150" y2="440" stroke="rgba(111,227,196,0.3)" stroke-width="1"/>
+        <line x1="430" y1="310" x2="700" y2="440" stroke="rgba(138,127,255,0.3)" stroke-width="1"/>
+        <line x1="430" y1="310" x2="430" y2="520" stroke="rgba(111,227,196,0.25)" stroke-width="1"/>
+        <line x1="640" y1="120" x2="700" y2="440" stroke="rgba(138,127,255,0.15)" stroke-width="1"/>
+
+        <!-- core node -->
+        <circle cx="430" cy="310" r="20" fill="#6FE3C4" opacity="0.9"/>
+        <circle cx="430" cy="310" r="30" fill="#6FE3C4" opacity="0.15"/>
+        <text x="430" y="350" text-anchor="middle" font-size="12" fill="#E8ECF1" font-family="Noto Sans SC">GatewaySyncPlanner</text>
+
+        <!-- related nodes -->
+        <circle cx="200" cy="140" r="9" fill="#6FE3C4"/>
+        <text x="200" y="122" text-anchor="middle" font-size="11" fill="#8B93A1">决策记录 · 2026-05</text>
+
+        <circle cx="640" cy="120" r="9" fill="#8A7FFF"/>
+        <text x="640" y="102" text-anchor="middle" font-size="11" fill="#8B93A1">RowIdSharder.java</text>
+
+        <circle cx="150" cy="440" r="9" fill="#6FE3C4"/>
+        <text x="150" y="462" text-anchor="middle" font-size="11" fill="#8B93A1">网关设计文档.docx</text>
+
+        <circle cx="700" cy="440" r="9" fill="#8A7FFF"/>
+        <text x="700" y="462" text-anchor="middle" font-size="11" fill="#8B93A1">KeysetCursor.java</text>
+
+        <circle cx="430" cy="520" r="9" fill="#6FE3C4"/>
+        <text x="430" y="542" text-anchor="middle" font-size="11" fill="#8B93A1">Kafka 调试记录</text>
+      </svg>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h3>选中节点</h3>
+        <div class="row"><span class="name">GatewaySyncPlanner.java</span><span class="meta">6 处关联</span></div>
+        <div class="row"><span class="name">最近修改</span><span class="meta">3 天前</span></div>
+        <div class="row"><span class="name">健康度</span><span class="meta" style="color:#6FE3C4">一致</span></div>
+      </div>
+      <div class="panel">
+        <h3>关联摘要</h3>
+        <div class="row" style="display:block;">
+          <div style="color:var(--text-secondary); line-height:1.6;">该文件实现全量同步的分片调度逻辑，与 RowIdSharder / KeysetCursor 共同构成 MVP 阶段的同步方案；相关设计决策记录了 GXSJ 字段为空导致增量方案被推迟的背景。</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>操作</h3>
+        <div class="row"><span class="name">在编辑器中打开</span><span class="meta">↵</span></div>
+        <div class="row"><span class="name">查看历史版本</span><span class="meta">⌘H</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

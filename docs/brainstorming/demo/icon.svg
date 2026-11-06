@@ -1,0 +1,52 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0E14"/>
+      <stop offset="100%" stop-color="#12151D"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#B9FCE9" stop-opacity="1"/>
+      <stop offset="45%" stop-color="#6FE3C4" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#6FE3C4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ring1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8A7FFF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6FE3C4" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="ring2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6FE3C4" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#8A7FFF" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="blur1" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- app icon squircle background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- outer layered glass rings (storehouse / layered memory) -->
+  <circle cx="256" cy="240" r="150" fill="none" stroke="url(#ring1)" stroke-width="2" opacity="0.7"/>
+  <circle cx="256" cy="240" r="118" fill="none" stroke="url(#ring2)" stroke-width="2" opacity="0.8"/>
+  <circle cx="256" cy="240" r="86"  fill="none" stroke="#6FE3C4" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- glass panel arcs suggesting layered strata -->
+  <path d="M 130 300 A 150 150 0 0 0 382 300" fill="none" stroke="#8A7FFF" stroke-width="3" stroke-linecap="round" opacity="0.35" filter="url(#blur1)"/>
+  <path d="M 150 330 A 170 170 0 0 0 362 330" fill="none" stroke="#6FE3C4" stroke-width="3" stroke-linecap="round" opacity="0.3" filter="url(#blur1)"/>
+
+  <!-- breathing memory core -->
+  <circle cx="256" cy="240" r="46" fill="url(#core)"/>
+  <circle cx="256" cy="240" r="14" fill="#EFFFFA"/>
+
+  <!-- small orbiting nodes: association points -->
+  <circle cx="368" cy="180" r="7" fill="#6FE3C4"/>
+  <circle cx="150" cy="200" r="6" fill="#8A7FFF"/>
+  <circle cx="330" cy="340" r="5" fill="#8A7FFF"/>
+  <circle cx="180" cy="330" r="6" fill="#6FE3C4"/>
+
+  <!-- thin connective lines from core to nodes (association graph feel) -->
+  <line x1="256" y1="240" x2="368" y2="180" stroke="#6FE3C4" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="240" x2="150" y2="200" stroke="#8A7FFF" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="240" x2="330" y2="340" stroke="#8A7FFF" stroke-width="1" opacity="0.3"/>
+  <line x1="256" y1="240" x2="180" y2="330" stroke="#6FE3C4" stroke-width="1" opacity="0.3"/>
+</svg>

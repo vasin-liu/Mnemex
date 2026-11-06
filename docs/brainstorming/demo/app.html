@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>藏识 Mnemex — 交互原型 v1.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============ Tokens（UI 规范 §二/§三） ============ */
+:root{
+  --bg-base:#0B0E14; --bg-deep:#070910;
+  --glass-fill:rgba(255,255,255,0.05); --glass-fill-strong:rgba(255,255,255,0.08);
+  --glass-border:rgba(255,255,255,0.10);
+  --text-primary:#E8ECF1; --text-secondary:#8B93A1; --text-tertiary:#565D6B;
+  --accent-jade:#6FE3C4; --accent-violet:#8A7FFF; --accent-coral:#E2725B;
+  --radius:20px; --gap:18px; --nav-w:76px;
+  --font-ui:'Space Grotesk','Noto Sans SC',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-ui);font-size:13px;overflow:hidden}
+::selection{background:rgba(111,227,196,.25)}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent-jade);outline-offset:2px;border-radius:8px}
+.mono{font-family:var(--font-mono)}
+
+/* ============ App Shell ============ */
+#app{display:flex;height:100vh}
+nav.sidebar{width:var(--nav-w);flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0;border-right:1px solid var(--glass-border);background:rgba(7,9,16,.6)}
+.nav-item{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);position:relative;transition:all .14s ease-out}
+.nav-item:hover{color:var(--text-secondary);background:var(--glass-fill)}
+.nav-item.active{color:var(--accent-jade);background:rgba(111,227,196,.10)}
+.nav-item.active::before{content:'';position:absolute;left:-16px;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--accent-jade)}
+.nav-item svg{width:21px;height:21px}
+.nav-item .dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--accent-violet);display:none}
+.nav-item .dot.on{display:block}
+.nav-sep{height:1px;width:36px;background:var(--glass-border);margin:8px 0}
+.nav-core{margin-top:auto}
+
+/* 记忆核心（规范 §五签名元素） */
+.core{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--accent-jade) 38%,transparent 74%);animation:breathe 3.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.75}50%{transform:scale(1.12);opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ============ Topbar ============ */
+.topbar{height:44px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--glass-border);backdrop-filter:blur(20px);background:rgba(11,14,20,.7)}
+.scope-chip{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);padding:5px 10px;border:1px solid var(--glass-border);border-radius:9px}
+.scope-chip:hover{background:var(--glass-fill);color:var(--text-primary)}
+.scope-chip .branch{color:var(--accent-violet)}
+.topbar .spacer{flex:1}
+.kbd-capsule{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);border:1px solid var(--glass-border);border-radius:7px;padding:3px 8px}
+#palette-trigger{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--glass-border);border-radius:9px;color:var(--text-secondary);font-size:12px}
+#palette-trigger:hover{background:var(--glass-fill);color:var(--text-primary)}
+.proto-tag{font-family:var(--font-mono);font-size:9px;letter-spacing:.14em;color:var(--text-tertiary);border:1px dashed var(--glass-border);border-radius:6px;padding:2px 7px}
+
+/* 资源状态轨（2.3） */
+.rail{display:flex;gap:14px;align-items:center}
+.light{position:relative;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text-secondary)}
+.light i{width:8px;height:8px;border-radius:50%;background:var(--accent-jade)}
+.light.violet i{background:var(--accent-violet);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+.light.dim i{background:var(--text-tertiary)}
+.light:hover .railcard{display:block}
+.railcard{display:none;position:absolute;top:26px;right:0;width:264px;background:rgba(7,9,16,.92);backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-radius:14px;padding:14px;z-index:60}
+.railcard h4{font-size:12px;font-weight:500;margin-bottom:8px}
+.railcard .row{display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);padding:3px 0}
+.railcard .row b{color:var(--text-primary);font-weight:400}
+.railcard .note{margin-top:8px;font-size:10px;color:var(--text-tertiary);line-height:1.5}
+
+/* ============ Main / Views ============ */
+main{flex:1;overflow-y:auto;padding:20px 22px 40px}
+.view{display:none;max-width:1180px;margin:0 auto}
+.view.on{display:block}
+.view-title{display:flex;align-items:baseline;gap:12px;margin-bottom:16px}
+.view-title h1{font-size:16px;font-weight:500}
+.view-title span{font-size:11px;color:var(--text-tertiary)}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:var(--gap)}
+.grid .col{display:flex;flex-direction:column;gap:var(--gap)}
+@media(max-width:960px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--glass-fill);border:1px solid var(--glass-border);border-radius:var(--radius);backdrop-filter:blur(18px);padding:20px 22px}
+.card h3{font-size:14px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card h3 .more{margin-left:auto;font-size:11px;color:var(--text-tertiary);font-weight:400}
+.card h3 .more:hover{color:var(--accent-jade)}
+
+/* ============ 通用组件 ============ */
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:8px}
+.tag.jade{background:rgba(111,227,196,.12);color:var(--accent-jade)}
+.tag.violet{background:rgba(138,127,255,.14);color:var(--accent-violet)}
+.tag.ghost{background:transparent;border:1px solid var(--glass-border);color:var(--text-secondary)}
+.tag.locked{background:transparent;border:1px dashed var(--glass-border);color:var(--text-tertiary)}
+.tag.coral{background:rgba(226,114,91,.12);color:var(--accent-coral)}
+.badge-uncal{display:inline-flex;align-items:center;font-size:10px;color:var(--text-tertiary);border:1px solid var(--glass-border);border-radius:6px;padding:1px 6px}
+.stale{border:1px dashed rgba(255,255,255,.22);border-radius:8px;color:var(--text-secondary)}
+.stale-solid{border:1px solid rgba(226,114,91,.4);border-radius:6px;color:var(--accent-coral);font-size:10px;padding:1px 6px}
+
+/* RefChip（2.2） */
+.refchip{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border:1px solid var(--glass-border);border-radius:10px;background:var(--glass-fill);cursor:pointer;position:relative;transition:all .14s ease-out;max-width:100%}
+.refchip:hover{background:var(--glass-fill-strong);border-color:rgba(255,255,255,.18)}
+.refchip .ic{width:12px;height:12px;flex-shrink:0}
+.refchip .t{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.refchip .id{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)}
+.refchip .tip{display:none;position:absolute;top:calc(100% + 8px);left:0;width:300px;background:rgba(7,9,16,.94);backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-radius:12px;padding:12px;z-index:70;text-align:left}
+.refchip:hover .tip,.refchip:focus .tip{display:block}
+.refchip .tip .tt{font-size:12px;margin-bottom:6px}
+.refchip .tip .tr{font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);padding:2px 0;display:flex;gap:8px}
+.refchip .tip .tr b{color:var(--text-tertiary);font-weight:400;min-width:88px}
+
+/* 列表行 */
+.rowlist{display:flex;flex-direction:column}
+.lrow{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
+.lrow:last-child{border-bottom:none}
+.lrow .path{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .time{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)}
+.lrow.actions{gap:8px}
+.lrow .act{font-size:11px;color:var(--text-tertiary);border:1px solid transparent;border-radius:7px;padding:3px 8px}
+.lrow .act:hover{color:var(--accent-jade);border-color:var(--glass-border)}
+.lrow .act.on{color:var(--accent-jade);border-color:rgba(111,227,196,.3)}
+.lrow .act.reject.on{color:var(--text-secondary)}
+
+/* 阶段徽章（3.2 状态机） */
+.stages{display:flex;align-items:center;gap:3px}
+.stg{font-size:10px;padding:2px 7px;border-radius:6px;color:var(--text-tertiary);border:1px solid transparent}
+.stg.done{color:var(--accent-jade)}
+.stg.doing{color:var(--accent-violet);background:rgba(138,127,255,.14);animation:blink 1.2s ease-in-out infinite}
+.stg.fail{color:var(--accent-coral);border:1px dashed rgba(226,114,91,.4)}
+.stg-arrow{color:var(--text-tertiary);font-size:9px}
+
+/* 统计数字 */
+.stats{display:flex;gap:26px;flex-wrap:wrap}
+.stat .n{font-family:'Space Grotesk',var(--font-mono);font-size:26px;font-weight:500}
+.stat .l{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.stat .langs{display:flex;gap:6px;margin-top:6px}
+
+/* 进度类 */
+.bar{height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent-jade);border-radius:3px}
+.dogfood .num{font-family:'Space Grotesk';font-size:22px}
+
+/* 置灰锁定块 */
+.locked-block{opacity:.55;position:relative}
+.locked-block .lock-note{font-size:11px;color:var(--text-tertiary);margin-top:8px;display:flex;gap:6px;align-items:flex-start;line-height:1.5}
+
+/* ============ 检索页 ============ */
+.searchbar{display:flex;align-items:center;gap:10px;background:var(--glass-fill);border:1px solid var(--glass-border);border-radius:14px;padding:11px 16px;margin-bottom:12px}
+.searchbar svg{width:15px;height:15px;color:var(--text-tertiary);flex-shrink:0}
+.searchbar input{flex:1;background:none;border:none;color:var(--text-primary);font-size:13px;font-family:inherit}
+.searchbar input:focus{outline:none}
+.searchbar .kbd{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)}
+.mode-pills{display:inline-flex;border:1px solid var(--glass-border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.mode-pills button{padding:6px 16px;font-size:12px;color:var(--text-secondary)}
+.mode-pills button.on{background:rgba(111,227,196,.12);color:var(--accent-jade)}
+.mode-pills button small{opacity:.6;font-size:10px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.fpill{font-size:11px;padding:4px 11px;border-radius:16px;border:1px solid var(--glass-border);color:var(--text-secondary)}
+.fpill.on{border-color:rgba(111,227,196,.4);color:var(--accent-jade)}
+.fpill[disabled]{opacity:.45;cursor:not-allowed}
+.sort-note{font-size:11px;color:var(--text-tertiary);margin-bottom:12px;font-family:var(--font-mono)}
+.result{border:1px solid var(--glass-border);border-radius:14px;padding:14px 16px;margin-bottom:10px;background:var(--glass-fill);transition:border-color .14s}
+.result:hover{border-color:rgba(255,255,255,.18)}
+.result .head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.result .snippet{font-size:12px;color:var(--text-secondary);margin:8px 0;line-height:1.6}
+.result .meta{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);display:flex;gap:12px;flex-wrap:wrap}
+.result .fb{display:flex;gap:6px;opacity:0;transition:opacity .14s}
+.result:hover .fb,.result:focus-within .fb{opacity:1}
+.callchain{border-top:1px dashed var(--glass-border);margin-top:10px;padding-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.callchain h5{font-size:10px;color:var(--text-tertiary);margin-bottom:6px;font-weight:400;letter-spacing:.08em}
+.callchain .cc{display:flex;flex-direction:column;gap:6px}
+
+/* ============ 记忆库 ============ */
+table.ko{width:100%;border-collapse:collapse}
+table.ko th{font-size:10px;color:var(--text-tertiary);text-align:left;font-weight:400;padding:6px 8px;letter-spacing:.06em}
+table.ko td{font-size:12px;padding:9px 8px;border-top:1px solid rgba(255,255,255,.05)}
+table.ko tr.ko-row{cursor:pointer}
+table.ko tr.ko-row:hover td{background:var(--glass-fill)}
+.ko-detail{display:none}
+.ko-detail.on{display:block}
+.back-link{font-size:12px;color:var(--text-secondary);margin-bottom:14px;display:inline-flex;gap:6px;align-items:center}
+.back-link:hover{color:var(--accent-jade)}
+.kd-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.kd-head h2{font-size:16px;font-weight:500}
+.kd-id{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);border:1px solid var(--glass-border);border-radius:6px;padding:3px 8px;cursor:pointer}
+.kd-id:hover{color:var(--accent-jade)}
+.kd-grid{display:grid;grid-template-columns:2fr 1fr;gap:var(--gap)}
+@media(max-width:960px){.kd-grid{grid-template-columns:1fr}}
+.tri-cards{display:grid;gap:10px;margin-bottom:14px}
+.tri-card{border:1px solid var(--glass-border);border-radius:14px;padding:13px 15px}
+.tri-card h5{font-size:10px;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:6px;font-weight:400}
+.tri-card p{font-size:12px;line-height:1.65;color:var(--text-primary)}
+.diffbox{border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;font-family:var(--font-mono);font-size:11px}
+.diffbox .dh{padding:7px 12px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid var(--glass-border);display:flex;justify-content:space-between}
+.diffbox .dl{padding:10px 12px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap}
+.diffbox .add{color:var(--accent-jade)}
+.diffbox .del{color:var(--accent-coral)}
+.timeline{position:relative;padding-left:18px}
+.timeline::before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--glass-border)}
+.tl-item{position:relative;padding:0 0 14px}
+.tl-item::before{content:'';position:absolute;left:-17px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--bg-base);border:1.5px solid var(--text-tertiary)}
+.tl-item.rule::before{border-color:var(--accent-jade)}
+.tl-item.model::before{border-color:var(--accent-violet)}
+.tl-item .t{font-size:10px;font-family:var(--font-mono);color:var(--text-tertiary)}
+.tl-item .d{font-size:12px;margin-top:2px}
+.tl-item .src{font-size:10px;color:var(--text-tertiary)}
+.opbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.opbtn{font-size:12px;padding:7px 13px;border:1px solid var(--glass-border);border-radius:10px;color:var(--text-secondary)}
+.opbtn:hover{color:var(--accent-jade);border-color:rgba(111,227,196,.35)}
+.opbtn.danger:hover{color:var(--accent-coral);border-color:rgba(226,114,91,.4)}
+
+/* ============ 图谱 ============ */
+.graph-wrap{display:grid;grid-template-columns:1fr 320px;gap:var(--gap)}
+@media(max-width:960px){.graph-wrap{grid-template-columns:1fr}}
+.gcanvas{position:relative;height:560px;border:1px solid var(--glass-border);border-radius:var(--radius);background:radial-gradient(ellipse at 50% 45%,rgba(138,127,255,.05),transparent 65%),var(--bg-deep);overflow:hidden}
+.gnode{position:absolute;display:flex;align-items:center;gap:7px;transform:translate(-50%,-50%);cursor:pointer;z-index:5}
+.gnode .nd{border-radius:50%;background:var(--accent-jade);box-shadow:0 0 14px rgba(111,227,196,.5)}
+.gnode.core .nd{width:20px;height:20px}
+.gnode.rel .nd{width:10px;height:10px;box-shadow:0 0 8px rgba(138,127,255,.4)}
+.gnode.violet .nd{background:var(--accent-violet)}
+.gnode .lbl{font-size:10px;color:var(--text-secondary);background:rgba(7,9,16,.7);padding:2px 7px;border-radius:6px;white-space:nowrap}
+.gnode.stale .nd{box-shadow:none;background:var(--bg-base);border:1.5px dashed var(--text-tertiary)}
+.gnode .conflict{position:absolute;top:-6px;left:-6px;width:8px;height:8px;border-radius:2px;background:var(--accent-coral)}
+.gedges{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;gap:14px;margin-top:12px;font-size:10px;color:var(--text-tertiary);flex-wrap:wrap}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+
+/* ============ 隐私页 ============ */
+.lvl{display:flex;flex-direction:column;gap:2px}
+.lvl-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:11px;font-size:12px}
+.lvl-row:hover{background:var(--glass-fill)}
+.lvl-row .name{width:150px}
+.lvl-row .desc{flex:1;font-size:11px;color:var(--text-tertiary)}
+.lvl-row .cnt{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)}
+.gate{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
+.gate:last-child{border-bottom:none}
+.gate .bulb{width:10px;height:10px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.gate.pass .bulb{background:var(--accent-jade)}
+.gate.blocked .bulb{background:var(--accent-coral)}
+.gate.na .bulb{background:var(--text-tertiary)}
+.gate .why{font-size:10px;color:var(--text-tertiary);margin-top:3px}
+.globrow{display:flex;align-items:center;gap:8px;padding:6px 0}
+.globrow .p{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);flex:1}
+.globrow .lock{color:var(--accent-coral)}
+.gate-sum{margin-top:10px;font-size:11px;color:var(--text-secondary)}
+.sw{position:relative;width:34px;height:20px;border-radius:10px;background:rgba(255,255,255,.12);flex-shrink:0;transition:background .14s}
+.sw::after{content:'';position:absolute;top:2.5px;left:3px;width:15px;height:15px;border-radius:50%;background:var(--text-secondary);transition:all .14s ease-out}
+.sw.on{background:rgba(111,227,196,.30)}
+.sw.on::after{left:16px;background:var(--accent-jade)}
+.sw.dis{opacity:.4;pointer-events:none}
+.swrow{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:12px}
+.swrow .why{font-size:10px;color:var(--text-tertiary);margin-left:auto}
+
+/* ============ 命令面板 ============ */
+#overlay{position:fixed;inset:0;background:rgba(7,9,16,.6);backdrop-filter:blur(4px);display:none;z-index:100}
+#overlay.on{display:block}
+#palette{position:absolute;left:50%;top:14vh;transform:translateX(-50%);width:560px;max-width:92vw;background:rgba(11,14,20,.96);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.14);border-radius:18px;overflow:hidden}
+#palette .pin{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--glass-border)}
+#palette input{flex:1;background:none;border:none;color:var(--text-primary);font-size:14px;font-family:inherit}
+#palette input:focus{outline:none}
+#palette .pgroup{max-height:340px;overflow-y:auto;padding:8px}
+#palette .pg{font-size:10px;color:var(--text-tertiary);letter-spacing:.1em;padding:8px 12px 4px}
+.pitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;font-size:13px;cursor:pointer;color:var(--text-secondary)}
+.pitem:hover{background:var(--glass-fill-strong);color:var(--text-primary)}
+.pitem .pk{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary)}
+.pconfirm{padding:14px 18px;border-top:1px solid var(--glass-border);display:none}
+.pconfirm.on{display:block}
+.pconfirm p{font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6}
+.pconfirm .btns{display:flex;gap:10px;justify-content:flex-end}
+.pconfirm .btns button{font-size:12px;padding:7px 14px;border-radius:10px;border:1px solid var(--glass-border)}
+.pconfirm .go{color:var(--accent-coral);border-color:rgba(226,114,91,.4)}
+
+/* 提示条 */
+.toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,10px);background:rgba(7,9,16,.94);border:1px solid var(--glass-border);border-radius:12px;padding:11px 18px;font-size:12px;color:var(--text-secondary);opacity:0;pointer-events:none;transition:all .2s;z-index:200}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 设置 */
+.setgroup{margin-bottom:6px}
+.setrow{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
+.setrow:last-child{border-bottom:none}
+.setrow .sl{width:190px;color:var(--text-secondary)}
+.setrow .sv{flex:1;font-size:11px;color:var(--text-tertiary)}
+.empty-ok{padding:26px 0;text-align:center}
+.empty-ok .big{font-size:14px;color:var(--accent-jade);margin-bottom:6px}
+.empty-ok .sub{font-size:11px;color:var(--text-tertiary)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ================= 侧栏（1.1 主航 6 项） ================= -->
+<nav class="sidebar" aria-label="主导航">
+  <button class="nav-item active" data-view="dashboard" title="扫描仪表盘" aria-label="扫描仪表盘">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="4" width="17" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></svg>
+  </button>
+  <button class="nav-item" data-view="retrieval" title="检索" aria-label="检索">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+  </button>
+  <button class="nav-item" data-view="graph" title="关联图谱" aria-label="关联图谱">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="17" r="2.4"/><circle cx="19" cy="17" r="2.4"/><path d="M10.8 6.8 6.2 15M13.2 6.8l4.6 8.2M7.4 17h9.2"/></svg>
+  </button>
+  <button class="nav-item" data-view="library" title="记忆库" aria-label="记忆库" id="nav-library">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z"/><path d="M5 17a3 3 0 0 1 3-3h10"/><path d="M9 8h6"/></svg>
+  </button>
+  <div class="nav-sep"></div>
+  <button class="nav-item" data-view="privacy" title="隐私与推理" aria-label="隐私与推理">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3.5 5.5 6v5.5c0 4 2.7 7 6.5 8.5 3.8-1.5 6.5-4.5 6.5-8.5V6L12 3.5Z"/><path d="m9.5 12 1.8 1.8 3.6-3.6"/></svg>
+    <span class="dot" id="privacy-dot"></span>
+  </button>
+  <button class="nav-item" data-view="settings" title="设置" aria-label="设置">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 3.8v2.4M12 17.8v2.4M3.8 12h2.4M17.8 12h2.4M6.2 6.2l1.7 1.7M16.1 16.1l1.7 1.7M17.8 6.2l-1.7 1.7M7.9 16.1l-1.7 1.7"/></svg>
+  </button>
+  <div class="nav-core" title="记忆核心"><div class="core" aria-hidden="true"></div></div>
+</nav>
+
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+  <!-- ================= 顶栏（1.2） ================= -->
+  <header class="topbar">
+    <button class="scope-chip mono" id="scope-chip" title="当前工作区作用域（Agent 的记忆边界）">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M3 12h18"/></svg>
+      D:\work\mnemex <span class="branch">main</span>
+    </button>
+    <span class="proto-tag">PROTOTYPE · 概念数据</span>
+    <div class="spacer"></div>
+    <!-- 资源状态轨（2.3） -->
+    <div class="rail" aria-label="资源状态">
+      <div class="light violet" tabindex="0">推理
+        <div class="railcard">
+          <h4>推理服务 · llama.cpp sidecar</h4>
+          <div class="row"><b>当前驻留</b><span>Qwen3.5-4B · Q4_K_M（3.3GB）</span></div>
+          <div class="row"><b>状态</b><span>生成中 · 摘要任务 ×1</span></div>
+          <div class="row"><b>显存占用</b><span>4.1 / 6.2 GB</span></div>
+          <div class="row"><b>n_ctx 硬顶</b><span>16,384 token</span></div>
+          <div class="note">排程回放：5 分钟前 embedding 卸载 → 加载 4B（互斥排程：同一时刻仅驻留一路模型）</div>
+        </div>
+      </div>
+      <div class="light" tabindex="0">索引
+        <div class="railcard">
+          <h4>索引管线</h4>
+          <div class="row"><b>状态</b><span>向量化中</span></div>
+          <div class="row"><b>队列</b><span>2 个文件</span></div>
+          <div class="row"><b>速率</b><span>~140 chunk/分钟</span></div>
+          <div class="note">embedding 走本地 ONNX（ort），不依赖推理服务——两条管线互不阻塞。</div>
+        </div>
+      </div>
+      <div class="light" tabindex="0">边界
+        <div class="railcard">
+          <h4>出云边界</h4>
+          <div class="row"><b>当前</b><span>仅本地（loopback）</span></div>
+          <div class="row"><b>禁止出云规则</b><span>3 条生效</span></div>
+          <div class="note">云端增强未开启。开启需通过三重门：L3 总开关 + 未命中禁止出云列表 + 二次确认。</div>
+        </div>
+      </div>
+    </div>
+    <button id="palette-trigger"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>命令面板 <span class="kbd-capsule mono">Ctrl K</span></button>
+  </header>
+
+  <main>
+  <!-- ============================================================
+       视图一：扫描仪表盘
+  ============================================================ -->
+  <section class="view on" id="view-dashboard" aria-label="扫描仪表盘">
+    <div class="view-title"><h1>扫描仪表盘</h1><span>工作区 mnemex · 上次增量 2 分钟前</span></div>
+    <div class="grid">
+      <div class="col">
+        <div class="card">
+          <h3>索引总览</h3>
+          <div class="stats">
+            <div class="stat"><div class="n">12,847</div><div class="l">文件</div></div>
+            <div class="stat"><div class="n">31,209</div><div class="l">知识对象</div></div>
+            <div class="stat"><div class="n">58,912</div><div class="l">关联边</div></div>
+            <div class="stat"><div class="n" style="font-size:16px;padding-top:8px"><span class="tag jade">Java</span> <span class="tag jade">Rust</span> <span class="tag jade">TypeScript</span> <span class="tag jade">Python</span></div><div class="l">覆盖语言</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>扫描队列 <span class="more">全部任务 →</span></h3>
+          <div class="rowlist">
+            <div class="lrow">
+              <span class="path">src/retrieval/fusion.rs</span>
+              <div class="stages" aria-label="管线阶段">
+                <span class="stg done">解析</span><span class="stg-arrow">→</span>
+                <span class="stg done">分块</span><span class="stg-arrow">→</span>
+                <span class="stg doing">向量化</span><span class="stg-arrow">→</span>
+                <span class="stg">关联</span>
+              </div>
+            </div>
+            <div class="lrow">
+              <span class="path">docs/adr/ADR-010-l15-decision-layer.md</span>
+              <div class="stages">
+                <span class="stg doing">解析</span><span class="stg-arrow">→</span>
+                <span class="stg">分块</span><span class="stg-arrow">→</span>
+                <span class="stg">向量化</span><span class="stg-arrow">→</span>
+                <span class="stg">关联</span>
+              </div>
+            </div>
+            <div class="lrow">
+              <span class="path">legacy/proto/billing.proto</span>
+              <div class="stages">
+                <span class="stg done">解析</span><span class="stg-arrow">→</span>
+                <span class="stg done">分块</span><span class="stg-arrow">→</span>
+                <span class="stg fail">向量化 ✕</span>
+              </div>
+              <button class="act" onclick="retryRow(this)">重试该阶段</button>
+            </div>
+            <div class="lrow">
+              <span class="path">docs/design/summary-draft.md</span>
+              <span class="tag ghost">摘要任务</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">等待推理服务…</span>
+              <span class="time" style="margin-left:auto">排队 #3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>增量事件流 <span class="more">筛选 →</span></h3>
+          <div class="rowlist">
+            <div class="lrow"><span class="tag violet">M</span><span class="path">src/core/engine.rs</span><span class="time">commit a3f9e12 · 2 分钟前</span></div>
+            <div class="lrow"><span class="tag violet">M</span><span class="path">src/retrieval/rank.rs</span><span class="time">commit a3f9e12 · 2 分钟前</span></div>
+            <div class="lrow"><span class="tag jade">A</span><span class="path">docs/adr/ADR-010-l15-decision-layer.md</span><span class="time">commit f8c2210 · 41 分钟前</span></div>
+            <div class="lrow"><span class="tag ghost">重命名</span><span class="path">src/store/vector → src/store/lancedb_store.rs</span><span class="time">commit 5be99d3 · 1 小时前</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>跳过清单 <span class="more">全部 37 项 →</span></h3>
+          <div class="rowlist">
+            <div class="lrow"><span class="path">scans/legacy-arch.pdf</span><span style="font-size:11px;color:var(--text-tertiary)">无文本层 · 已标记跳过</span>
+              <button class="act locked" title="视觉转写为 Phase 2+ 显式增强，当前不可用" style="color:var(--text-tertiary);cursor:not-allowed">启用视觉转写（Phase 2+）</button>
+            </div>
+            <div class="lrow"><span class="path">binaries/app-release.exe</span><span style="font-size:11px;color:var(--text-tertiary)">二进制文件</span></div>
+            <div class="lrow"><span class="path">db/monolithic-schema.sql</span><span style="font-size:11px;color:var(--text-tertiary)">单文件超过 chunk 上限（1200 token）</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h3>项目摘要 <span class="more">刷新 · 走本地模型 →</span></h3>
+          <p style="font-size:12px;line-height:1.7;color:var(--text-secondary)">本地工程记忆引擎（Rust + Tauri 2）：核心域为 Knowledge Object 生命周期管理，检索走 BM25+向量 RRF 融合，结构关联覆盖四语言调用边。本周新增 L1.5 决策层设计（ADR-010）。</p>
+          <div style="margin-top:10px;font-size:10px;color:var(--text-tertiary)" class="mono">摘要层级：chunk → 文件 → 模块 → 项目 · 最近重建 41 分钟前</div>
+        </div>
+
+        <div class="card">
+          <h3>知识健康度 <span class="more" data-goto="library">在记忆库中查看 →</span></h3>
+          <div class="stats">
+            <div class="stat"><div class="n" style="color:var(--text-secondary)">14</div><div class="l">可能过时</div></div>
+            <div class="stat"><div class="n" style="color:var(--text-tertiary)">—</div><div class="l">矛盾候选（Phase 2 起）</div></div>
+          </div>
+          <div style="margin-top:12px" class="lrow actions">
+            <span class="refchip" tabindex="0" onclick="gotoLib('ko-fusion')">
+              <span style="color:var(--accent-violet)">◆</span><span class="t">RRF 融合权重说明</span><span class="id">b41c88</span>
+              <span class="tip"><div class="tt">RRF 融合权重说明 <span class="badge-uncal">未校准</span></div>
+                <div class="tr"><b>类型</b>DocumentSection · docs/design</div>
+                <div class="tr"><b>freshness</b>规则判定：早于 commit a3f9e12</div>
+                <div class="tr"><b>content_hash</b>9f30…c2 · <b>commit</b>7d1b44e</div></span>
+            </span>
+            <span class="stale" style="font-size:10px;padding:2px 7px">可能过时</span>
+            <span class="act" style="margin-left:auto">去更新</span><span class="act">忽略</span>
+          </div>
+        </div>
+
+        <div class="card dogfood">
+          <h3>记忆成长（狗粮进度）</h3>
+          <div style="display:flex;align-items:baseline;gap:10px"><span class="num">47</span><span style="font-size:12px;color:var(--text-secondary)">次真实使用已积累</span></div>
+          <div style="margin-top:10px" class="bar"><i style="width:42%"></i></div>
+          <p style="margin-top:10px;font-size:11px;color:var(--text-tertiary);line-height:1.6">主动提醒与模式挖掘将基于真实使用数据解锁。<b style="color:var(--text-secondary)">阈值待定</b>——将随校准完成度公布，不预先虚构目标。</p>
+        </div>
+
+        <div class="card locked-block">
+          <h3>每周回顾 <span class="tag locked">Phase 2</span></h3>
+          <p style="font-size:12px;color:var(--text-tertiary);line-height:1.6">每周统计新增关联、识别出的决策与一条"意外发现"。等待索引与摘要管线稳定后开放。</p>
+          <div class="lock-note">🔓 解锁条件：Phase 2 · 记忆引擎 MVP 上线</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       视图二：检索
+  ============================================================ -->
+  <section class="view" id="view-retrieval" aria-label="检索">
+    <div class="view-title"><h1>检索</h1><span>快速路径 · 平均响应 180ms</span></div>
+    <div class="searchbar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      <input placeholder="检索文档、代码或历史决策…" value="lancedb 一致性" aria-label="检索">
+      <span class="kbd mono">Ctrl K</span>
+    </div>
+    <div class="mode-pills" role="tablist">
+      <button class="on" role="tab">快速</button>
+      <button role="tab" onclick="toast('已切换深度路径：召回 → 图扩展 → 重排（本机档位：无重排器，已跳过 Reranker 阶段）')">深度 <small>（本机无重排）</small></button>
+    </div>
+    <div class="filters">
+      <button class="fpill">类型：全部</button>
+      <button class="fpill on">代码符号</button>
+      <button class="fpill">文档节</button>
+      <button class="fpill">决策记录</button>
+      <button class="fpill">时间：不限</button>
+      <button class="fpill on">人工已验证</button>
+      <button class="fpill" disabled title="模型置信过滤依赖校准完成（路线图外后置项），当前不可用">模型高置信（未校准，禁用）</button>
+    </div>
+    <div class="sort-note">排序：BM25(FTS5) + 向量 RRF 融合 · freshness 规则生效 · 置信度降权未启用（未校准）</div>
+
+    <div class="result" tabindex="0">
+      <div class="head">
+        <span class="refchip" tabindex="0" onclick="gotoLib('ko-vectorstore')">
+          <span style="color:var(--accent-violet)">◆</span><span class="t">VectorStore::upsert_chunks</span><span class="id">a3f9e1</span>
+          <span class="tip"><div class="tt">VectorStore::upsert_chunks</div>
+            <div class="tr"><b>类型</b>CodeSymbol · src/store/lancedb_store.rs</div>
+            <div class="tr"><b>调用边</b>3 callers · 1 callee</div>
+            <div class="tr"><b>content_hash</b>44ab…e7 · <b>commit</b>a3f9e12</div></span>
+        </span>
+        <span class="tag jade">已验证</span><span class="tag ghost">Rust</span>
+      </div>
+      <p class="snippet">向 SQLite 提交元数据后追平 LanceDB 向量，以 chunk_id + content_hash 对齐；校验失败标记该 chunk 待重建…</p>
+      <div class="meta"><span>src/store/lancedb_store.rs:118</span><span>commit a3f9e12</span><span>热度 ●●●○○</span><span>3 天前使用</span></div>
+      <div class="fb" style="margin-top:8px"><button class="act" onclick="vote(this,true)">有用</button><button class="act reject" onclick="vote(this,false)">无用</button></div>
+      <div class="callchain">
+        <div><h5>CALLERS（3）</h5><div class="cc">
+          <span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">IngestPipeline::run</span><span class="id">d10c22</span></span>
+          <span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">BackfillJob::rebuild</span><span class="id">77b9e0</span></span>
+        </div></div>
+        <div><h5>CALLEES（1）</h5><div class="cc">
+          <span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">hash::align_chunk</span><span class="id">f31a08</span></span>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="result" tabindex="0">
+      <div class="head">
+        <span class="refchip" tabindex="0" onclick="gotoLib('ko-adr002')">
+          <span style="color:var(--accent-jade)">◇</span><span class="t">ADR-002：SQLite 为 source of truth</span><span class="id">7d1b44</span>
+          <span class="tip"><div class="tt">ADR-002：SQLite 为 source of truth</div>
+            <div class="tr"><b>类型</b>DesignDecision · docs/adr</div>
+            <div class="tr"><b>状态</b>已验证 · 无矛盾</div>
+            <div class="tr"><b>content_hash</b>9f30c2… · <b>commit</b>7d1b44e</div></span>
+        </span>
+        <span class="tag jade">已验证</span><span class="tag ghost">决策记录</span>
+      </div>
+      <p class="snippet">问题：SQLite 与 LanceDB 无跨库事务，一次文件变更需两处提交。诊断：补偿流可保证最终一致。方案：SQLite 提交 → LanceDB 追平 → 哈希校验，LanceDB 可全量重建。</p>
+      <div class="meta"><span>docs/adr/ADR-002-dual-store.md</span><span>commit 7d1b44e</span><span>热度 ●●●●●</span></div>
+      <div class="fb" style="margin-top:8px"><button class="act" onclick="vote(this,true)">有用</button><button class="act reject" onclick="vote(this,false)">无用</button></div>
+    </div>
+
+    <div class="result" tabindex="0">
+      <div class="head">
+        <span class="refchip" tabindex="0">
+          <span style="color:var(--accent-jade)">◇</span><span class="t">BugRecord：sqlite-vec 回退路径的坑</span><span class="id">c88e17</span>
+          <span class="tip"><div class="tt">BugRecord：sqlite-vec 回退路径的坑</div>
+            <div class="tr"><b>类型</b>BugRecord · 记忆库 #ko-bug-vec</div>
+            <div class="tr"><b>状态</b>未验证 <span class="badge-uncal">未校准</span></div></span>
+        </span>
+        <span class="stale" style="font-size:10px;padding:2px 7px">可能过时</span>
+      </div>
+      <p class="snippet">根因：虚拟表在删除文件后保留孤儿向量。修复：重建时先清 chunk_map 再批量插入。该记录早于回退协议修订（commit 5be99d3）…</p>
+      <div class="meta"><span>notes/debug/2026-10-21.md</span><span>早于 commit 5be99d3</span></div>
+      <div class="fb" style="margin-top:8px"><button class="act" onclick="vote(this,true)">有用</button><button class="act reject" onclick="vote(this,false)">无用</button></div>
+    </div>
+    <p style="font-size:11px;color:var(--text-tertiary);text-align:center;margin-top:6px">深度检索更准但更慢 · <a href="#" style="color:var(--accent-jade)" onclick="toast('深度路径执行中：召回 → 图扩展（本机已跳过重排）');return false">用深度路径重试</a></p>
+  </section>
+
+  <!-- ============================================================
+       视图三：记忆库（列表 + 详情）
+  ============================================================ -->
+  <section class="view" id="view-library" aria-label="记忆库">
+    <div id="ko-list">
+      <div class="view-title"><h1>记忆库</h1><span>31,209 个知识对象 · 当前工作区</span></div>
+      <div class="card" style="padding:10px 16px">
+        <table class="ko" aria-label="知识对象列表">
+          <thead><tr><th style="width:44%">对象</th><th>类型</th><th>生命周期</th><th>使用</th><th>最近</th></tr></thead>
+          <tbody>
+            <tr class="ko-row" onclick="showKo('ko-adr002')"><td><span class="refchip"><span style="color:var(--accent-jade)">◇</span><span class="t">ADR-002：SQLite 为 source of truth</span><span class="id">7d1b44</span></span></td><td><span class="tag ghost">决策记录</span></td><td><span class="tag jade">已验证</span></td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">182</td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">2 小时前</td></tr>
+            <tr class="ko-row" onclick="showKo('ko-vectorstore')"><td><span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">VectorStore::upsert_chunks</span><span class="id">a3f9e1</span></span></td><td><span class="tag ghost">代码符号</span></td><td><span class="tag jade">已验证</span></td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">64</td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">3 天前</td></tr>
+            <tr class="ko-row"><td><span class="refchip"><span style="color:var(--accent-jade)">◇</span><span class="t">RRF 融合权重说明</span><span class="id">b41c88</span></span></td><td><span class="tag ghost">文档节</span></td><td><span class="stale" style="font-size:10px;padding:2px 7px">可能过时</span></td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">12</td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">3 周前</td></tr>
+            <tr class="ko-row"><td><span class="refchip"><span style="color:var(--accent-jade)">◇</span><span class="t">BugRecord：sqlite-vec 回退路径的坑</span><span class="id">c88e17</span></span></td><td><span class="tag ghost">缺陷记录</span></td><td><span class="stale" style="font-size:10px;padding:2px 7px">可能过时</span></td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">28</td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">10 月</td></tr>
+            <tr class="ko-row"><td><span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">CommitEvent: a3f9e12（L1.5 门禁字段）</span><span class="id">e99d03</span></span></td><td><span class="tag ghost">提交事件</span></td><td><span class="tag ghost">正常</span></td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">9</td><td class="mono" style="font-size:11px;color:var(--text-tertiary)">2 分钟前</td></tr>
+          </tbody>
+        </table>
+        <p style="padding:10px 8px 4px;font-size:11px;color:var(--text-tertiary)">过滤器：人工已验证（2）· 模型高置信（未校准，禁用）· 归档对象默认隐藏（历史查询 Phase 3 开放）</p>
+      </div>
+    </div>
+
+    <!-- 详情页（示范对象 = ADR-002 决策记录） -->
+    <div id="ko-detail" class="ko-detail" aria-label="知识对象详情">
+      <button class="back-link" onclick="hideKo()">← 返回记忆库列表</button>
+      <div class="kd-head">
+        <span style="color:var(--accent-jade);font-size:17px">◇</span>
+        <h2>ADR-002：SQLite 为 source of truth</h2>
+        <span class="tag jade">已验证</span>
+        <button class="kd-id" onclick="toast('已复制完整 KO id：ko-dd-002-7d1b44e…')" title="点击复制完整 id">KO id · 7d1b44e</button>
+        <span style="font-size:11px;color:var(--text-tertiary)">类型：DesignDecision · 依赖对象 4 · 被引用 182 次</span>
+      </div>
+      <div class="kd-grid">
+        <div class="col" style="gap:var(--gap)">
+          <div class="card">
+            <h3>问题 · 诊断 · 方案</h3>
+            <div class="tri-cards">
+              <div class="tri-card"><h5>问题 PROBLEM</h5><p>SQLite（元数据/FTS5/边表）与 LanceDB（向量）没有跨库事务——一次文件变更需要两处提交，崩溃窗口内会脏。</p></div>
+              <div class="tri-card"><h5>诊断 DIAGNOSIS</h5><p>补偿流可保证最终一致；真正的风险是"半写后无校验"，而不是缺少分布式事务。</p></div>
+              <div class="tri-card"><h5>方案 DECISION</h5><p>SQLite 为 source of truth，LanceDB 可全量重建；以 chunk_id + content_hash 对齐，走"提交 → 追平 → 哈希校验"三段流。</p></div>
+            </div>
+            <div class="diffbox">
+              <div class="dh"><span>关联 commit 7d1b44e · "feat(store): dual-store consistency protocol"</span><span>点击展开/收起</span></div>
+              <div class="dl" style="display:none">  <span class="add">+ pub fn align_chunk(cid: ChunkId, hash: ContentHash) -> AlignResult {</span>
+  <span class="add">+     verify(cid, hash).or_mark_rebuild(cid)</span>
+  <span class="add">+ }</span>
+  <span class="del">- // TODO: cross-db transaction (deferred)</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>关联对象</h3>
+            <div class="rowlist">
+              <div class="lrow actions"><span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">VectorStore::upsert_chunks</span><span class="id">a3f9e1</span></span><span style="font-size:10px;color:var(--text-tertiary);margin-left:auto">实现依据</span></div>
+              <div class="lrow actions"><span class="refchip"><span style="color:var(--accent-violet)">◆</span><span class="t">hash::align_chunk</span><span class="id">f31a08</span></span><span style="font-size:10px;color:var(--text-tertiary);margin-left:auto">调用</span></div>
+              <div class="lrow actions"><span class="refchip"><span style="color:var(--accent-jade)">◇</span><span class="t">ADR-005：LanceDB Spike 退出标准</span><span class="id">5be99d</span></span><span style="font-size:10px;color:var(--text-tertiary);margin-left:auto">同批决策</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="col" style="gap:var(--gap)">
+          <div class="card">
+            <h3>事件历史 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;margin-left:auto">◆ 规则 ◈ 模型</span></h3>
+            <div class="timeline">
+              <div class="tl-item rule"><div class="t">2026-11-05 14:02</div><div class="d">创建 · 解析自 docs/adr/ADR-002-dual-store.md</div><div class="src">规则触发 · 文件系统</div></div>
+              <div class="tl-item rule"><div class="t">2026-11-05 14:03</div><div class="d">强化 · 提交事件 e99d03 关联 4 个 KO</div><div class="src">规则触发 · git 集成</div></div>
+              <div class="tl-item model"><div class="t">2026-11-05 14:11</div><div class="d">候选评分 · 语义近邻命中 <span class="badge-uncal">未校准</span></div><div class="src">模型触发 · L1.5 影子（仅记录，未写库）</div></div>
+              <div class="tl-item rule"><div class="t">2026-11-05 15:40</div><div class="d">已验证 · 用户在检索面板确认</div><div class="src">用户动作</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>操作 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;margin-left:auto">全部记录为事件，不改数值</span></h3>
+            <div class="opbar">
+              <button class="opbtn" onclick="toast('已记录事件：用户标记已验证（写入 knowledge_events）')">标记已验证</button>
+              <button class="opbtn" onclick="toast('已记录事件：用户标记过时 —— 与规则判定（未过时）并存显示，用户标记优先')">用户标记过时</button>
+              <button class="opbtn danger" onclick="toast('已记录事件：矛盾候选提交确认队列（进入 coral 确认流）')">标记矛盾</button>
+              <button class="opbtn" onclick="toast('已归档：不再参与检索 · 历史查询将在 Phase 3 开放')">归档</button>
+            </div>
+            <p style="margin-top:10px;font-size:10px;color:var(--text-tertiary);line-height:1.6">置信度属校准域（路线图外后置项），界面不允许直接修改数值字段。</p>
+          </div>
+          <div class="card">
+            <h3>Agent 视角</h3>
+            <p style="font-size:11px;color:var(--text-secondary);line-height:1.65">该对象进入 Context Bundle 的形态：稳定 id 引用（ko-dd-002-7d1b44e + content_hash 9f30c2），不内联全文。</p>
+            <button class="opbtn" style="margin-top:10px" onclick="toast('Context Bundle 预览：token 占用 341 / 预算 4096 · 引用形态 id+hash · compaction 稳定')">预览 Context Bundle</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       视图四：关联图谱
+  ============================================================ -->
+  <section class="view" id="view-graph" aria-label="关联图谱">
+    <div class="view-title"><h1>关联图谱</h1><span>选中对象 · 2 跳邻域 · 12 节点</span></div>
+    <div class="graph-wrap">
+      <div>
+        <div class="filters" style="margin-bottom:12px">
+          <button class="fpill on" onclick="gfilter(this,'all')">全部</button>
+          <button class="fpill" onclick="gfilter(this,'code')">代码</button>
+          <button class="fpill" onclick="gfilter(this,'doc')">文档</button>
+          <button class="fpill" onclick="gfilter(this,'decision')">决策记录</button>
+          <button class="fpill" onclick="gfilter(this,'bug')">缺陷记录</button>
+          <button class="fpill" style="margin-left:auto">仅 2 跳邻域 ✓</button>
+        </div>
+        <div class="gcanvas" id="gcanvas" aria-label="关联图画画布">
+          <svg class="gedges" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line x1="50" y1="46" x2="26" y2="24" stroke="rgba(138,127,255,.35)"/>
+            <line x1="50" y1="46" x2="74" y2="22" stroke="rgba(138,127,255,.35)"/>
+            <line x1="50" y1="46" x2="18" y2="70" stroke="rgba(138,127,255,.35)"/>
+            <line x1="50" y1="46" x2="78" y2="66" stroke="rgba(138,127,255,.35)"/>
+            <line x1="50" y1="46" x2="50" y2="12" stroke="rgba(111,227,196,.3)" stroke-dasharray="2 2"/>
+            <line x1="26" y1="24" x2="26" y2="60" stroke="rgba(255,255,255,.12)"/>
+            <line x1="74" y1="22" x2="78" y2="66" stroke="rgba(255,255,255,.12)"/>
+            <line x1="18" y1="70" x2="78" y2="66" stroke="rgba(111,227,196,.25)" stroke-dasharray="2 2"/>
+          </svg>
+          <div class="gnode core" style="left:50%;top:46%" data-type="code" tabindex="0" onclick="gselect('VectorStore::upsert_chunks','代码符号 · 3 callers / 1 callee · 边类型：调用/import（AST 解析，确定性）','44ab…e7 · commit a3f9e12','')">
+            <div class="nd"></div><span class="lbl">VectorStore::upsert_chunks</span>
+          </div>
+          <div class="gnode rel violet" style="left:26%;top:24%" data-type="code" tabindex="0" onclick="gselect('IngestPipeline::run','代码符号 · 上游调用方 · 边类型：调用（AST）','12cc…90 · commit a3f9e12','')"><div class="nd"></div><span class="lbl">IngestPipeline::run</span></div>
+          <div class="gnode rel violet" style="left:74%;top:22%" data-type="code" tabindex="0" onclick="gselect('BackfillJob::rebuild','代码符号 · 上游调用方 · 边类型：调用（AST）','77b9e0 · commit 5be99d3','')"><div class="nd"></div><span class="lbl">BackfillJob::rebuild</span></div>
+          <div class="gnode rel violet" style="left:18%;top:70%" data-type="code" tabindex="0" onclick="gselect('hash::align_chunk','代码符号 · 下游被调方 · 边类型：调用（AST）','f31a08 · commit 7d1b44e','')"><div class="nd"></div><span class="lbl">hash::align_chunk</span></div>
+          <div class="gnode rel" style="left:78%;top:66%" data-type="decision" tabindex="0" onclick="gselect('ADR-002：双库一致性','决策记录 · 语义近邻边 <span class=badge-uncal>未校准</span> —— 展开查看边依据','9f30c2 · commit 7d1b44e','')"><div class="nd"></div><span class="lbl">ADR-002：双库一致性</span></div>
+          <div class="gnode rel" style="left:50%;top:12%" data-type="doc" tabindex="0" onclick="gselect('设计文档：检索管线','文档节 · 边类型：引用（文档内链接，确定性）','77b31a · commit f8c2210','')"><div class="nd"></div><span class="lbl">设计文档：检索管线</span></div>
+          <div class="gnode rel stale" style="left:26%;top:60%" data-type="doc" tabindex="0" onclick="gselect('RRF 融合权重说明','文档节 · freshness 规则判定：早于 commit a3f9e12，可能过时','b41c88 · commit 7d1b44e','stale')"><div class="nd"></div><span class="lbl">RRF 权重说明</span></div>
+          <div class="gnode rel" style="left:86%;top:40%" data-type="bug" tabindex="0" onclick="gselect('BugRecord：sqlite-vec 回退坑','缺陷记录 · 语义近邻边 <span class=badge-uncal>未校准</span> · 矛盾候选待确认','c88e17 · commit 5be99d3','conflict')">
+            <div class="nd"></div><span class="conflict" title="矛盾候选待确认"></span><span class="lbl">sqlite-vec 回退坑</span>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--accent-jade)"></i>当前对象（20px）</span>
+          <span><i style="background:var(--accent-violet)"></i>代码关联</span>
+          <span><i style="background:var(--accent-jade);opacity:.6"></i>文档/历史关联</span>
+          <span><i style="border:1.5px dashed var(--text-tertiary);background:none"></i>可能过时</span>
+          <span><i style="background:var(--accent-coral);border-radius:2px;width:8px"></i>矛盾候选角标</span>
+          <span>虚线 = 语义近邻（未校准）· 实线 = 确定性边（AST/引用）</span>
+        </div>
+      </div>
+      <div class="card" style="align-self:start;position:sticky;top:0" id="gpanel">
+        <h3 id="gp-title">VectorStore::upsert_chunks</h3>
+        <div id="gp-body">
+          <p style="font-size:12px;line-height:1.65;color:var(--text-secondary)">代码符号 · 3 callers / 1 callee · 边类型：调用/import（AST 解析，确定性）</p>
+          <div class="rowlist" style="margin-top:10px">
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">content_hash</span><span class="path">44ab…e7</span></div>
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">commit</span><span class="path">a3f9e12</span></div>
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">关联依据</span><span class="path">AST 解析 + git 提交关联</span></div>
+          </div>
+          <div class="opbar"><button class="opbtn" onclick="gotoLib('ko-vectorstore')">在记忆库中打开</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       视图五：隐私与推理
+  ============================================================ -->
+  <section class="view" id="view-privacy" aria-label="隐私与推理">
+    <div class="view-title"><h1>隐私与推理</h1><span>本地优先 · 当前一切推理均在 loopback</span></div>
+    <div class="grid">
+      <div class="col">
+        <div class="card">
+          <h3>推理档位 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;margin-left:auto">按任务复杂度自动选择</span></h3>
+          <div class="lvl">
+            <div class="lvl-row"><span class="name">L0 规则摘要</span><span class="desc">元数据、结构化提取</span><span class="cnt">24h · 5,214 次</span></div>
+            <div class="lvl-row"><span class="name">L1 embedding（ort）</span><span class="desc">语义检索 · 随应用内置</span><span class="cnt">24h · 2,830 次</span></div>
+            <div class="lvl-row locked-block"><span class="name">L1.5 结构化决策 <span class="tag locked">Phase 2</span></span><span class="desc">影子运行中 · 评测门禁 41/50 通过（切换需 ≥50 且抽取质量不低于纯 L2）</span><span class="cnt">—</span></div>
+            <div class="lvl-row"><span class="name">L2 摘要生成（sidecar）</span><span class="desc">Qwen3.5-4B · thinking 关闭</span><span class="cnt">24h · 61 次</span></div>
+            <div class="lvl-row locked-block"><span class="name">L3 云端增强</span><span class="desc">复杂跨文件综合 · 需通过出云三重门</span><span class="cnt">未开启</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>出云门 <span class="tag ghost" style="margin-left:auto">denylist 语义</span></h3>
+          <div class="gate na"><div class="bulb"></div><div><b>L3 总开关</b><div class="why">未开启 —— 前置条件</div></div></div>
+          <div class="gate blocked"><div class="bulb"></div><div><b>命中禁止出云列表</b><div class="why mono">D:\work\client-a\** 命中 —— 该路径内容永不离开本机</div></div></div>
+          <div class="gate na"><div class="bulb"></div><div><b>二次确认</b><div class="why">未发起 —— 每次出云调用前单次确认，确认后不可撤回（仅留审计记录）</div></div></div>
+          <div class="gate-sum">当前结果：<b style="color:var(--accent-jade)">仅本地（loopback）</b> —— 共享推理客户端的默认边界，误配地址不会将内容送出本机。</div>
+        </div>
+        <div class="card">
+          <h3>禁止出云（目录规则）</h3>
+          <div class="globrow"><span class="lock">🔒</span><span class="p mono">D:\work\client-a\**</span><span style="font-size:10px;color:var(--text-tertiary)">即使全局开启云端也强制本地</span></div>
+          <div class="globrow"><span class="lock">🔒</span><span class="p mono">**/*.env, **/secrets/**</span><span style="font-size:10px;color:var(--text-tertiary)">内置规则</span></div>
+          <div class="globrow"><span class="lock">🔒</span><span class="p mono">~/personal/**/*.pdf</span><span style="font-size:10px;color:var(--text-tertiary)">用户添加</span></div>
+          <button class="opbtn" style="margin-top:8px" onclick="toast('规则编辑器：新增 glob 规则（行内校验，误规则即时红色提示）')">＋ 添加规则</button>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>模型管理 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;margin-left:auto">三分层</span></h3>
+          <div style="font-size:10px;color:var(--text-tertiary);letter-spacing:.08em;margin-bottom:6px">默认下载层（Apache/MIT only）</div>
+          <div class="rowlist">
+            <div class="lrow"><span class="path">BGE-M3 · 568M</span><span class="tag ghost">MIT</span><span class="time">文本向量</span></div>
+            <div class="lrow"><span class="path">Qwen3-Embedding-0.6B</span><span class="tag ghost">Apache-2.0</span><span class="time">代码+文本候选</span></div>
+            <div class="lrow"><span class="path">Qwen3.5-4B · Q4_K_M</span><span class="tag ghost">Apache-2.0</span><span class="time">驻留中</span></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-tertiary);letter-spacing:.08em;margin:10px 0 6px">BYO 层（用户自带 · 责任自负）</div>
+          <div class="lrow"><span style="font-size:11px;color:var(--text-tertiary)">暂无自带模型</span><button class="act" onclick="toast('添加 BYO 模型：将显示许可证提示（如 CC BY-NC 禁商用），需确认后加入')">＋ 添加</button></div>
+          <div style="font-size:10px;color:var(--text-tertiary);letter-spacing:.08em;margin:10px 0 6px">云端层（显式开启）</div>
+          <div class="lrow"><span style="font-size:11px;color:var(--text-tertiary)">未配置 —— base_url 当前为 loopback:11435</span></div>
+        </div>
+        <div class="card">
+          <h3>推理服务（sidecar）</h3>
+          <div class="rowlist">
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">引擎</span><span class="path">llama.cpp server</span><span class="tag jade">运行中</span></div>
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">地址</span><span class="path">127.0.0.1:11435（loopback）</span></div>
+            <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">最近错误</span><span class="path">无</span></div>
+          </div>
+          <div class="opbar"><button class="opbtn" onclick="toast('sidecar 已重启 · 自检通过')">重启服务</button></div>
+        </div>
+        <div class="card">
+          <h3>Agent 工件 · 读取源 <span class="tag ghost">只读</span></h3>
+          <div class="swrow">AGENTS.md <span class="sw on" role="switch" aria-checked="true" tabindex="0" onclick="swToggle(this)"></span><span class="why mono">.agents/AGENTS.md</span></div>
+          <div class="swrow">CLAUDE.md <span class="sw on" role="switch" aria-checked="true" tabindex="0" onclick="swToggle(this)"></span><span class="why mono">CLAUDE.md</span></div>
+          <div class="swrow">SKILL.md <span class="sw dis" title="未在仓库中发现 SKILL.md"></span><span class="why">未找到</span></div>
+          <div class="swrow locked-block">auto-memory 导入 <span class="tag locked">Phase 2</span><span class="sw dis"></span><span class="why">需先确认目录布局</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       视图六：设置
+  ============================================================ -->
+  <section class="view" id="view-settings" aria-label="设置">
+    <div class="view-title"><h1>设置</h1><span>全局优先 · 变更即时生效</span></div>
+    <div class="grid">
+      <div class="col">
+        <div class="card setgroup">
+          <h3>通用</h3>
+          <div class="setrow"><span class="sl">主题</span><span class="sv">深色（浅色 · P2 规划中）</span></div>
+          <div class="setrow"><span class="sl">密度</span><span class="sv">舒适（36px）—— 全局优先，覆盖列表级记忆</span><span class="sw on" onclick="swToggle(this)"></span></div>
+          <div class="setrow"><span class="sl">呼吸动画</span><span class="sv">签名元素 · 遵循系统减弱动效</span><span class="sw on" onclick="swToggle(this)"></span></div>
+        </div>
+        <div class="card setgroup">
+          <h3>索引</h3>
+          <div class="setrow"><span class="sl">覆盖语言</span><span class="sv"><span class="tag jade">Java</span> <span class="tag jade">Rust</span> <span class="tag jade">TypeScript</span> <span class="tag jade">Python</span> · 其余按需求解锁</span></div>
+          <div class="setrow"><span class="sl">chunk 上限</span><span class="sv mono">1200 token（入池规则：超限模型不入评测池，如 mxbai 512）</span></div>
+          <div class="setrow"><span class="sl">扫描版 PDF</span><span class="sv">默认跳过 · 视觉转写为 Phase 2+ 显式增强</span></div>
+          <div class="setrow"><span class="sl">向量维度（MRL）</span><span class="sv">默认全维存储 · 截断为低端机显式配置（改维度 = 全量重建，需确认）</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card setgroup">
+          <h3>数据主权</h3>
+          <div class="setrow"><span class="sl">索引存储位置</span><span class="sv mono">~/.mnemex/index.db + vectors.lance（单目录可备份）</span></div>
+          <div class="setrow"><span class="sl">备份</span><span class="sv">复制单目录即可完整恢复（Spike 验收项）</span><button class="act">立即备份</button></div>
+          <div class="setrow"><span class="sl">导出 / 删除</span><span class="sv">全部记忆归你所有</span><button class="act">导出 JSON</button><button class="act danger">删除全部</button></div>
+        </div>
+        <div class="card setgroup">
+          <h3>系统分区</h3>
+          <div class="setrow"><span class="sl">Agent 工件</span><span class="sv">读取源（3 项已启用）· 导出器 Phase 4</span><button class="act" data-goto="privacy">配置 →</button></div>
+          <div class="setrow locked-block"><span class="sl">适配器状态（MCP / HTTP）</span><span class="sv">Phase 2 开放 · dual-era 服务端能力 + 客户端协商版本</span></div>
+          <div class="setrow"><span class="sl">回归评测集</span><span class="sv">三类任务 · 50 条 · 上次通过 49/50</span><button class="act" onclick="confirmEval()">运行评测</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  </main>
+</div>
+</div>
+
+<!-- ================= 命令面板（1.2） ================= -->
+<div id="overlay" onclick="closePalette()">
+  <div id="palette" role="dialog" aria-label="命令面板" onclick="event.stopPropagation()">
+    <div class="pin">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-tertiary)"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      <input id="palette-input" placeholder="前往页面 / 对象（# 前缀搜 KO id），或执行系统动作…" aria-label="命令">
+      <span class="kbd-capsule mono">ESC</span>
+    </div>
+    <div class="pgroup" id="palette-items">
+      <div class="pg">前往</div>
+      <div class="pitem" data-goto="dashboard">◧ 扫描仪表盘 <span class="pk">视图 1</span></div>
+      <div class="pitem" data-goto="retrieval">⌕ 检索 <span class="pk">视图 2</span></div>
+      <div class="pitem" data-goto="library">▤ 记忆库 <span class="pk">视图 3</span></div>
+      <div class="pitem" data-goto="graph">◈ 关联图谱 <span class="pk">视图 4</span></div>
+      <div class="pitem" data-goto="privacy">隐私与推理中心 <span class="pk">视图 5</span></div>
+      <div class="pg">系统动作</div>
+      <div class="pitem" onclick="confirmEval()">▶ 运行回归评测集 <span class="pk">重操作</span></div>
+      <div class="pitem" onclick="toast('sidecar 重启指令已发送');closePalette()">↻ 重启推理服务</div>
+    </div>
+    <div class="pconfirm" id="palette-confirm">
+      <p><b style="color:var(--text-primary)">运行回归评测集？</b><br>将占用推理服务约 2 分钟，期间摘要任务排队。评测是排序/分块调整的回归门禁。</p>
+      <div class="btns"><button onclick="closePalette()">取消</button><button class="go" onclick="runEval()">确认运行</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ============ 视图切换 ============ */
+function goto(v){
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
+  document.getElementById('view-'+v).classList.add('on');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===v));
+  closePalette();
+  document.querySelector('main').scrollTop=0;
+}
+document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>goto(n.dataset.view)));
+document.querySelectorAll('[data-goto]').forEach(el=>{if(el.classList.contains('nav-item'))return;el.addEventListener('click',()=>goto(el.dataset.goto))});
+
+/* ============ 命令面板 ============ */
+const overlay=document.getElementById('overlay'),pinput=document.getElementById('palette-input');
+function openPalette(){overlay.classList.add('on');pinput.value='';filterPalette('');setTimeout(()=>pinput.focus(),30)}
+function closePalette(){overlay.classList.remove('on');document.getElementById('palette-confirm').classList.remove('on')}
+document.getElementById('palette-trigger').addEventListener('click',openPalette);
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();overlay.classList.contains('on')?closePalette():openPalette()}
+  if(e.key==='Escape')closePalette();
+});
+pinput.addEventListener('input',()=>filterPalette(pinput.value));
+function filterPalette(q){
+  q=q.trim().toLowerCase();
+  document.querySelectorAll('#palette-items .pitem').forEach(i=>{
+    i.style.display=i.textContent.toLowerCase().includes(q)?'flex':'none';
+  });
+}
+document.querySelectorAll('#palette-items .pitem[data-goto]').forEach(i=>i.addEventListener('click',()=>goto(i.dataset.goto)));
+
+/* 评测确认流（系统动作 → 二次确认） */
+function confirmEval(){document.getElementById('palette-confirm').classList.add('on')}
+function runEval(){
+  closePalette();
+  toast('回归评测完成：49/50 通过 · 1 条失败用例（coral 门禁）—— 已标记待修复');
+}
+
+/* ============ 记忆库 列表 ⇄ 详情 ============ */
+function showKo(id){document.getElementById('ko-list').style.display='none';document.getElementById('ko-detail').classList.add('on')}
+function hideKo(){document.getElementById('ko-detail').classList.remove('on');document.getElementById('ko-list').style.display='block'}
+function gotoLib(){goto('library');setTimeout(()=>{if(!document.getElementById('ko-detail').classList.contains('on'))showKo()},50)}
+
+/* ============ 图谱 ============ */
+function gselect(title,edge,hash,extra){
+  document.getElementById('gp-title').textContent=title;
+  const badge=extra==='conflict'?'<span class="stale-solid">矛盾候选待确认</span>':extra==='stale'?'<span class="stale" style="font-size:10px;padding:2px 7px">可能过时</span>':'';
+  document.getElementById('gp-body').innerHTML=
+    `<p style="font-size:12px;line-height:1.65;color:var(--text-secondary)">${edge}</p>${badge?'<div style="margin:8px 0">'+badge+'</div>':''}
+     <div class="rowlist" style="margin-top:10px">
+       <div class="lrow"><span class="path" style="flex:none;color:var(--text-tertiary)">content_hash / commit</span><span class="path">${hash}</span></div>
+     </div>
+     <div class="opbar"><button class="opbtn" onclick="gotoLib()">在记忆库中打开</button></div>`;
+}
+function gfilter(btn,type){
+  btn.parentElement.querySelectorAll('.fpill').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  document.querySelectorAll('.gnode').forEach(n=>{
+    n.style.opacity=(type==='all'||n.dataset.type===type)?1:.15;
+    n.style.pointerEvents=(type==='all'||n.dataset.type===type)?'auto':'none';
+  });
+}
+
+/* ============ 小交互 ============ */
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),3200);
+}
+function vote(btn,good){btn.parentElement.querySelectorAll('.act').forEach(b=>b.classList.remove('on'));btn.classList.add('on');toast(good?'已记录反馈事件（有用）——Phase 1 仅记录，不推进解锁闸门':'已记录反馈事件（无用）')}
+function retryRow(btn){toast('已从「向量化」阶段重试 legacy/proto/billing.proto')}
+function swToggle(sw){sw.classList.toggle('on');sw.setAttribute('aria-checked',sw.classList.contains('on'))}
+/* diff 展开 */
+document.querySelector('.diffbox .dh').addEventListener('click',function(){
+  const dl=this.nextElementSibling;dl.style.display=dl.style.display==='none'?'block':'none';
+});
+/* scope 切换示意 */
+document.getElementById('scope-chip').addEventListener('click',()=>toast('工作区切换器：路径 + 分支 = Agent 的记忆边界（对应 MCP 显式 scope 参数）'));
+/* 隐私角标：L1.5 影子运行中 */
+document.getElementById('privacy-dot').classList.add('on');
+</script>
+</body>
+</html>

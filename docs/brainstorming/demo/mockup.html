@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>藏识 Mnemex — 概念界面设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0B0E14;
+    --bg-deep:#070910;
+    --glass-fill: rgba(255,255,255,0.05);
+    --glass-fill-strong: rgba(255,255,255,0.08);
+    --glass-border: rgba(255,255,255,0.10);
+    --text-primary:#E8ECF1;
+    --text-secondary:#8B93A1;
+    --text-tertiary:#565D6B;
+    --accent-jade:#6FE3C4;
+    --accent-violet:#8A7FFF;
+    --accent-coral:#E2725B;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Noto Sans SC','Space Grotesk',sans-serif;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(138,127,255,0.10), transparent 60%),
+      radial-gradient(1000px 700px at 90% 10%, rgba(111,227,196,0.08), transparent 55%),
+      var(--bg-base);
+    color:var(--text-primary);
+    min-height:100vh;
+    padding:28px;
+  }
+  .shell{
+    display:grid;
+    grid-template-columns:76px 1fr;
+    gap:20px;
+    max-width:1180px;
+    margin:0 auto;
+  }
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background:var(--glass-fill);
+    border:1px solid var(--glass-border);
+    border-radius:20px;
+    backdrop-filter: blur(20px);
+    padding:20px 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+  }
+  .core-mark{
+    width:34px; height:34px;
+    border-radius:50%;
+    background: radial-gradient(circle at 40% 35%, #EFFFFA, #6FE3C4 55%, transparent 75%);
+    margin-bottom:22px;
+    position:relative;
+    animation: breathe 3.4s ease-in-out infinite;
+  }
+  @keyframes breathe{
+    0%,100%{ transform:scale(1); filter:brightness(1); }
+    50%{ transform:scale(1.12); filter:brightness(1.25); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .core-mark{ animation:none; }
+  }
+  .nav-item{
+    width:44px; height:44px;
+    border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-secondary);
+    font-size:18px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item.active{
+    background:var(--glass-fill-strong);
+    color:var(--accent-jade);
+    box-shadow: inset 0 0 0 1px rgba(111,227,196,0.25);
+  }
+  .nav-item:hover:not(.active){ background:rgba(255,255,255,0.04); color:var(--text-primary); }
+
+  /* ---------- Main area ---------- */
+  .main{ display:flex; flex-direction:column; gap:18px; }
+
+  .topbar{ display:flex; align-items:center; gap:16px; }
+  .searchbar{
+    flex:1;
+    background:var(--glass-fill);
+    border:1px solid var(--glass-border);
+    border-radius:16px;
+    backdrop-filter:blur(16px);
+    padding:14px 20px;
+    display:flex; align-items:center; gap:12px;
+    color:var(--text-secondary);
+    font-size:14px;
+  }
+  .searchbar .k{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-tertiary); border:1px solid var(--glass-border); border-radius:6px; padding:2px 6px; }
+  .status-pill{
+    display:flex; align-items:center; gap:8px;
+    background:var(--glass-fill);
+    border:1px solid var(--glass-border);
+    border-radius:999px;
+    padding:9px 16px;
+    font-size:13px;
+    color:var(--text-secondary);
+    white-space:nowrap;
+  }
+  .status-dot{ width:7px; height:7px; border-radius:50%; background:var(--accent-jade); box-shadow:0 0 8px var(--accent-jade); }
+
+  .grid{ display:grid; grid-template-columns:1.3fr 1fr; gap:18px; }
+  .col{ display:flex; flex-direction:column; gap:18px; }
+
+  .card{
+    background:var(--glass-fill);
+    border:1px solid var(--glass-border);
+    border-radius:20px;
+    backdrop-filter:blur(18px);
+    padding:22px;
+  }
+  .card h3{ font-size:14px; font-weight:500; color:var(--text-primary); margin-bottom:4px; }
+  .card .sub{ font-size:12px; color:var(--text-tertiary); margin-bottom:16px; }
+
+  /* scan status card */
+  .scan-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid rgba(255,255,255,0.05); font-size:13px; }
+  .scan-row:first-of-type{ border-top:none; }
+  .scan-row .name{ color:var(--text-primary); }
+  .scan-row .meta{ color:var(--text-tertiary); font-family:'JetBrains Mono',monospace; font-size:11px; }
+  .tag{ font-size:11px; padding:2px 8px; border-radius:6px; }
+  .tag.indexed{ background:rgba(111,227,196,0.12); color:var(--accent-jade); }
+  .tag.pending{ background:rgba(138,127,255,0.14); color:var(--accent-violet); }
+
+  /* retrieval preview */
+  .result-item{ padding:12px 0; border-top:1px solid rgba(255,255,255,0.05); }
+  .result-item:first-of-type{ border-top:none; }
+  .result-title{ font-size:13px; color:var(--text-primary); margin-bottom:4px; }
+  .result-path{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-tertiary); }
+  .result-snippet{ font-size:12px; color:var(--text-secondary); margin-top:6px; line-height:1.6; }
+
+  /* association graph mini preview */
+  .graph-box{ height:190px; position:relative; }
+  .node{ position:absolute; width:10px; height:10px; border-radius:50%; }
+  .node.core{ width:16px; height:16px; background:var(--accent-jade); box-shadow:0 0 14px rgba(111,227,196,0.6); top:82px; left:130px; }
+  .node.a{ background:var(--accent-violet); top:30px; left:60px; }
+  .node.b{ background:var(--accent-violet); top:40px; left:230px; }
+  .node.c{ background:var(--accent-jade); top:140px; left:70px; }
+  .node.d{ background:var(--accent-jade); top:150px; left:220px; }
+  .edge{ position:absolute; height:1px; background:linear-gradient(90deg, rgba(111,227,196,0.4), rgba(138,127,255,0.15)); transform-origin:left center; }
+
+  /* pattern / history footer strip */
+  .strip{ display:flex; gap:12px; }
+  .strip .chip{
+    flex:1;
+    background:var(--glass-fill);
+    border:1px solid var(--glass-border);
+    border-radius:14px;
+    padding:14px 16px;
+    font-size:12px;
+    color:var(--text-secondary);
+    backdrop-filter:blur(14px);
+  }
+  .strip .chip b{ display:block; font-size:13px; color:var(--text-primary); font-weight:500; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar" aria-label="主导航">
+    <div class="core-mark" aria-hidden="true"></div>
+    <div class="nav-item active" title="扫描状态">◧</div>
+    <div class="nav-item" title="检索">⌕</div>
+    <div class="nav-item" title="关联图">◈</div>
+    <div class="nav-item" title="摘要">≡</div>
+    <div class="nav-item" title="设置" style="margin-top:auto;">⚙</div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="searchbar">
+        <span>⌕</span>
+        <span>检索文档、代码或历史决策…</span>
+        <span class="k">⌘K</span>
+      </div>
+      <div class="status-pill"><span class="status-dot"></span>正在索引 · 3 个文件</div>
+    </div>
+
+    <div class="grid">
+      <div class="col">
+        <div class="card">
+          <h3>扫描状态</h3>
+          <div class="sub">4 个受监控目录</div>
+          <div class="scan-row"><span class="name">gateway-service/</span><span class="meta">1,204 文件</span><span class="tag indexed">已索引</span></div>
+          <div class="scan-row"><span class="name">brain-common-util-data/</span><span class="meta">86 文件</span><span class="tag indexed">已索引</span></div>
+          <div class="scan-row"><span class="name">drift-player/</span><span class="meta">312 文件</span><span class="tag pending">索引中</span></div>
+          <div class="scan-row"><span class="name">设计文档 & 笔记/</span><span class="meta">57 文件</span><span class="tag indexed">已索引</span></div>
+        </div>
+
+        <div class="card">
+          <h3>检索结果预览</h3>
+          <div class="sub">"NULL 时间戳 增量同步"</div>
+          <div class="result-item">
+            <div class="result-title">GatewaySyncPlanner.java · fullSyncFallback()</div>
+            <div class="result-path">gateway-service/src/main/java/sync/</div>
+            <div class="result-snippet">当 GXSJ 字段为空时回退为基于 ROWID 的全量分片同步策略…</div>
+          </div>
+          <div class="result-item">
+            <div class="result-title">决策记录 · 2026-05</div>
+            <div class="result-path">来自 commit a3f2e1c</div>
+            <div class="result-snippet">发现生产环境时间戳字段存在 NULL 值，MVP 阶段暂缓增量同步…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h3>关联图谱</h3>
+          <div class="sub">当前文件的 6 处关联</div>
+          <div class="graph-box">
+            <svg width="100%" height="100%" style="position:absolute; top:0; left:0;">
+              <line x1="140" y1="90" x2="65" y2="35" stroke="rgba(111,227,196,0.35)" stroke-width="1"/>
+              <line x1="140" y1="90" x2="235" y2="45" stroke="rgba(138,127,255,0.3)" stroke-width="1"/>
+              <line x1="140" y1="90" x2="75" y2="145" stroke="rgba(111,227,196,0.3)" stroke-width="1"/>
+              <line x1="140" y1="90" x2="225" y2="155" stroke="rgba(138,127,255,0.25)" stroke-width="1"/>
+            </svg>
+            <div class="node core"></div>
+            <div class="node a"></div>
+            <div class="node b"></div>
+            <div class="node c"></div>
+            <div class="node d"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>主动提醒</h3>
+          <div class="sub">基于当前编辑内容</div>
+          <div class="result-item">
+            <div class="result-snippet">这段 Kafka 生产者异常处理逻辑，与你 3 个月前排查 <span style="color:var(--text-primary)">advertised.listeners</span> 问题时的记录相似。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="strip">
+      <div class="chip"><b>已识别模式</b>NULL 时间戳退化为全量同步 · 出现于 2 个项目</div>
+      <div class="chip"><b>命名习惯画像</b>偏好极简双音节命名（Drift / Seqx / Kekkai）</div>
+      <div class="chip"><b>本次会话</b>本地推理 · 云端能力已关闭</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

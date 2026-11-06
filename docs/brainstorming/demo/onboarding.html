@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>藏识 Mnemex — 首次运行引导</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0B0E14; --glass-fill: rgba(255,255,255,0.05); --glass-border: rgba(255,255,255,0.10);
+    --text-primary:#E8ECF1; --text-secondary:#8B93A1; --text-tertiary:#565D6B;
+    --accent-jade:#6FE3C4; --accent-violet:#8A7FFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Noto Sans SC','Space Grotesk',sans-serif;
+    background: radial-gradient(900px 600px at 50% 0%, rgba(111,227,196,0.09), transparent 60%), var(--bg-base);
+    color:var(--text-primary); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:40px;
+  }
+  .stage{ max-width:520px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
+
+  .core{
+    width:88px; height:88px; border-radius:50%;
+    background: radial-gradient(circle at 40% 35%, #EFFFFA, #6FE3C4 50%, transparent 72%);
+    animation: breathe 3.2s ease-in-out infinite;
+    position:relative;
+  }
+  .core::before, .core::after{
+    content:''; position:absolute; inset:-18px; border-radius:50%;
+    border:1px solid rgba(111,227,196,0.25);
+  }
+  .core::after{ inset:-34px; border-color:rgba(138,127,255,0.18); }
+  @keyframes breathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.08); } }
+  @media (prefers-reduced-motion: reduce){ .core{ animation:none; } }
+
+  h1{ font-size:20px; font-weight:500; }
+  p.desc{ font-size:14px; color:var(--text-secondary); line-height:1.8; max-width:420px; }
+
+  .progress-card{
+    width:100%; background:var(--glass-fill); border:1px solid var(--glass-border); border-radius:18px;
+    backdrop-filter:blur(16px); padding:20px; text-align:left;
+  }
+  .progress-row{ display:flex; align-items:center; gap:12px; padding:8px 0; font-size:13px; color:var(--text-secondary); }
+  .progress-row .status{ width:16px; height:16px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .progress-row .status.done{ background:rgba(111,227,196,0.18); color:var(--accent-jade); }
+  .progress-row .status.active{ background:rgba(138,127,255,0.18); color:var(--accent-violet); }
+  .progress-row .status.pending{ background:rgba(255,255,255,0.05); color:var(--text-tertiary); }
+  .progress-row .name{ color:var(--text-primary); }
+  .progress-row .meta{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-tertiary); }
+
+  .footnote{ font-size:12px; color:var(--text-tertiary); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="core" aria-hidden="true"></div>
+  <div>
+    <h1>藏识正在了解你的项目</h1>
+    <p class="desc">首次索引需要一些时间——之后每次改动都会是增量更新，只有这一次是全量的。这段时间里，你可以先去设置里确认隐私规则，或者直接开始工作，索引会在后台继续。</p>
+  </div>
+
+  <div class="progress-card">
+    <div class="progress-row">
+      <span class="status done">✓</span>
+      <span class="name">gateway-service/</span>
+      <span class="meta">1,204 文件 · 已完成</span>
+    </div>
+    <div class="progress-row">
+      <span class="status done">✓</span>
+      <span class="name">brain-common-util-data/</span>
+      <span class="meta">86 文件 · 已完成</span>
+    </div>
+    <div class="progress-row">
+      <span class="status active">◐</span>
+      <span class="name">drift-player/</span>
+      <span class="meta">312 文件 · 索引中 68%</span>
+    </div>
+    <div class="progress-row">
+      <span class="status pending">○</span>
+      <span class="name">设计文档 & 笔记/</span>
+      <span class="meta">等待中</span>
+    </div>
+  </div>
+
+  <div class="footnote">本次索引全部在本机完成，未发送任何内容到云端</div>
+</div>
+</body>
+</html>
