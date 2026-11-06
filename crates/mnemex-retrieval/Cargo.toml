@@ -1,0 +1,16 @@
+[package]
+name = "mnemex-retrieval"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Retrieval paths and ranking for Mnemex (Fast/Deep Path, RRF fusion)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dependency red line: mnemex-retrieval depends on mnemex-core and
+# mnemex-store, nothing else.
+mnemex-core = { path = "../mnemex-core" }
+mnemex-store = { path = "../mnemex-store" }

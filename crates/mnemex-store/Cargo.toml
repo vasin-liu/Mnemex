@@ -1,0 +1,14 @@
+[package]
+name = "mnemex-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Storage abstractions for Mnemex (VectorStore trait, SQLite-first)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dependency red line: mnemex-store depends only on mnemex-core.
+mnemex-core = { path = "../mnemex-core" }

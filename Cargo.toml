@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/mnemex-core",
+    "crates/mnemex-store",
+    "crates/mnemex-ingest",
+    "crates/mnemex-retrieval",
+    "crates/mnemex-adapter-mcp",
+    "crates/mnemex-adapter-http",
+    "crates/mnemex-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+
+[workspace.lints.rust]
+# Baseline warn set. `unsafe` is reserved for FFI modules with an ADR on record.
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

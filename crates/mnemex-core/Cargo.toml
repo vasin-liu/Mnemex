@@ -1,0 +1,14 @@
+[package]
+name = "mnemex-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Knowledge Object domain model for Mnemex (types, lifecycle, events, ids)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dependency red line: mnemex-core is the innermost crate and must not
+# depend on any other mnemex-* crate. See docs/adr and AGENTS.md.

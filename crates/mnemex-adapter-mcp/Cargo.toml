@@ -1,0 +1,15 @@
+[package]
+name = "mnemex-adapter-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Dual-era MCP adapter for Mnemex (Phase 2 implementation)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dependency red line: adapters share only the engine interface and MUST
+# NOT depend on each other. This crate never depends on mnemex-adapter-http.
+mnemex-retrieval = { path = "../mnemex-retrieval" }

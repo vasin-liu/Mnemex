@@ -1,0 +1,20 @@
+[package]
+name = "mnemex-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Mnemex command-line entry point (Phase 0 index/verify carrier)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# The CLI is the composition root for Phase 0 index/verify commands.
+mnemex-core = { path = "../mnemex-core" }
+mnemex-ingest = { path = "../mnemex-ingest" }
+mnemex-retrieval = { path = "../mnemex-retrieval" }
+
+[[bin]]
+name = "mnemex"
+path = "src/main.rs"

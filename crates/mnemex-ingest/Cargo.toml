@@ -1,0 +1,15 @@
+[package]
+name = "mnemex-ingest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Ingest pipeline for Mnemex (scan, parse, chunk)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Dependency red line: mnemex-ingest depends only on mnemex-core for now;
+# storage wiring lands with the Phase 0 pipeline change.
+mnemex-core = { path = "../mnemex-core" }
