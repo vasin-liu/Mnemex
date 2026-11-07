@@ -10,5 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
-# Dependency red line: mnemex-store depends only on mnemex-core.
+# Dependency red line: mnemex-store depends on mnemex-core plus exactly one
+# admitted third-party crate (rusqlite, MIT — see change add-sqlite-infra).
 mnemex-core = { path = "../mnemex-core" }
+rusqlite = { version = "0.41.1", default-features = false, features = ["bundled"] }

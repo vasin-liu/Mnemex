@@ -20,3 +20,5 @@
 pub trait VectorStore {
     // Intentionally empty placeholder; see the trait-level docs.
 }
+
+pub mod sqlite;
