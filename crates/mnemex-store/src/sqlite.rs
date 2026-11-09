@@ -1,9 +1,8 @@
 //! SQLite infrastructure: bootstrap of the source-of-truth store (ADR-002).
 //!
-//! Scope of this module (change `add-sqlite-infra`): opening the local
-//! database, library-level runtime parameters, and FTS5 availability
-//! enforcement. Table schema and migrations land in the follow-up store
-//! change.
+//! Scope of this module: opening the local database, library-level runtime
+//! parameters (WAL, busy timeout, foreign keys), and FTS5 availability
+//! enforcement. Table DDL and row mapping live in [`crate::schema`].
 //!
 //! SQLite is the source of truth (ADR-002): every other store (the vector
 //! store) is a derived, rebuildable index over it.
@@ -38,6 +37,12 @@ pub enum StoreError {
         /// What exactly was missing or failed during verification.
         detail: String,
     },
+    /// The database schema is newer than the migrations this binary knows.
+    /// Opening it would mean guessing at an unknown layout, so startup stops.
+    Migration {
+        /// `PRAGMA user_version` read from the file.
+        db_version: u32,
+    },
 }
 
 impl fmt::Display for StoreError {
@@ -47,6 +52,9 @@ impl fmt::Display for StoreError {
             Self::Fts5Unavailable { detail } => {
                 write!(f, "FTS5 unavailable: {detail}")
             }
+            Self::Migration { db_version } => {
+                write!(f, "schema version {db_version} is ahead of this build")
+            }
         }
     }
 }
@@ -55,7 +63,7 @@ impl Error for StoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Sqlite(err) => Some(err),
-            Self::Fts5Unavailable { .. } => None,
+            Self::Fts5Unavailable { .. } | Self::Migration { .. } => None,
         }
     }
 }
@@ -68,55 +76,53 @@ impl From<rusqlite::Error> for StoreError {
 
 /// Opened local SQLite database (the source of truth, ADR-002).
 ///
-/// The raw [`Connection`] is kept private (design D5): callers go through
-/// named methods, and the follow-up schema change adds migrations and table
-/// access on top of this struct.
+/// The raw [`Connection`] stays inside the crate: callers go through named
+/// methods. [`crate::schema`] uses it for migrations and row access.
 #[derive(Debug)]
 pub struct SqliteStore {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl SqliteStore {
     /// Creates or opens the SQLite database at `path`.
     ///
     /// Idempotent: a fresh path creates a new database; an existing
-    /// database is opened without touching its content. The open sequence
-    /// is: open → WAL journal mode → busy timeout → FTS5 verification
-    /// (design D5).
+    /// database is migrated up to [`crate::schema::SCHEMA_VERSION`].
+    /// The open sequence is: open, WAL journal mode, busy timeout,
+    /// `foreign_keys=ON`, migrate, then FTS5 verification.
+    /// A `user_version` newer than this binary returns [`StoreError::Migration`]
+    /// and does not yield a handle.
     pub fn open(path: &Path) -> Result<Self, StoreError> {
-        let conn = Connection::open(path)?;
+        let mut conn = Connection::open(path)?;
 
         // WAL: background incremental indexing writes coexist with
         // foreground reads. The pragma returns the achieved mode; anything
         // other than WAL is a hard failure, not a downgrade.
-        let mode: String =
-            conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
+        let mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
         if !mode.eq_ignore_ascii_case("wal") {
             return Err(StoreError::Sqlite(rusqlite::Error::SqliteFailure(
                 rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
-                Some(format!("journal_mode is {mode}, expected WAL"))),
-            ));
+                Some(format!("journal_mode is {mode}, expected WAL")),
+            )));
         }
 
         conn.busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS))?;
-
+        conn.pragma_update(None, "foreign_keys", 1_i64)?;
+        crate::schema::migrate(&mut conn)?;
         verify_fts5(&conn)?;
 
         Ok(Self { conn })
     }
 
     /// Runs one statement (DDL or DML) and returns the number of changed
-    /// rows. Test and migration surface; higher-level APIs land with the
-    /// schema change.
+    /// rows. Parameter-less diagnostic and test surface. Row APIs live on
+    /// [`crate::schema`] methods of this struct.
     pub fn execute(&self, sql: &str) -> Result<usize, StoreError> {
         Ok(self.conn.execute(sql, [])?)
     }
 
     /// Reads a single scalar value. Test and diagnostic surface.
-    pub fn query_scalar<T: rusqlite::types::FromSql>(
-        &self,
-        sql: &str,
-    ) -> Result<T, StoreError> {
+    pub fn query_scalar<T: rusqlite::types::FromSql>(&self, sql: &str) -> Result<T, StoreError> {
         Ok(self.conn.query_row(sql, [], |row| row.get::<_, T>(0))?)
     }
 
@@ -148,7 +154,9 @@ impl SqliteStore {
 pub(crate) fn verify_fts5(conn: &Connection) -> Result<(), StoreError> {
     let mut stmt = conn.prepare("PRAGMA compile_options")?;
     let options = stmt.query_map([], |row| row.get::<_, String>(0))?;
-    let enabled = options.filter_map(|row| row.ok()).any(|opt| opt.trim() == "ENABLE_FTS5");
+    let enabled = options
+        .filter_map(|row| row.ok())
+        .any(|opt| opt.trim() == "ENABLE_FTS5");
     if !enabled {
         return Err(StoreError::Fts5Unavailable {
             detail: "SQLite build lacks ENABLE_FTS5 in compile options".to_string(),
@@ -182,7 +190,10 @@ mod tests {
     fn store_error_display_and_source() {
         let err = StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows);
         assert!(err.to_string().to_lowercase().contains("sqlite"));
-        assert!(err.source().is_some(), "Sqlite variant must chain the rusqlite error");
+        assert!(
+            err.source().is_some(),
+            "Sqlite variant must chain the rusqlite error"
+        );
     }
 
     #[test]
@@ -196,12 +207,30 @@ mod tests {
     }
 
     #[test]
+    fn migration_error_names_the_ahead_version() {
+        let err = StoreError::Migration { db_version: 9 };
+        let text = err.to_string();
+        assert!(text.contains('9'), "display must name the database version");
+        assert!(
+            text.to_lowercase().contains("schema"),
+            "display must name the schema"
+        );
+        assert!(err.source().is_none(), "Migration has no underlying error");
+    }
+
+    #[test]
     fn fts5_error_category_is_identifiable() {
         let err = StoreError::Fts5Unavailable {
             detail: "SQLite build lacks ENABLE_FTS5".to_string(),
         };
-        assert!(err.to_string().contains("FTS5"), "error text must name FTS5");
-        assert!(err.source().is_none(), "Fts5Unavailable has no underlying error");
+        assert!(
+            err.to_string().contains("FTS5"),
+            "error text must name FTS5"
+        );
+        assert!(
+            err.source().is_none(),
+            "Fts5Unavailable has no underlying error"
+        );
     }
 
     #[test]

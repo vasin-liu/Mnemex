@@ -102,6 +102,11 @@ fn pragmas_are_in_effect() {
     assert_eq!(mode.to_ascii_lowercase(), "wal");
     let timeout_ms = store.busy_timeout_ms().expect("busy_timeout query");
     assert_eq!(timeout_ms, 5_000);
+    // sqlite-infra MODIFIED: foreign_keys is on for this connection.
+    let foreign_keys: i64 = store
+        .query_scalar("PRAGMA foreign_keys")
+        .expect("foreign_keys query");
+    assert_eq!(foreign_keys, 1);
 }
 
 #[test]

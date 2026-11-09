@@ -1,6 +1,7 @@
 //! Storage abstractions for Mnemex.
 //!
-//! Dependency red line: `mnemex-store` depends only on `mnemex-core`.
+//! Dependency red line: `mnemex-store` depends on `mnemex-core` and the
+//! single admitted third-party crate `rusqlite` (MIT).
 //!
 //! SQLite is the source of truth (FTS5, knowledge objects, events, graph
 //! edges). The vector store is a derived index that can be dropped and fully
@@ -21,4 +22,5 @@ pub trait VectorStore {
     // Intentionally empty placeholder; see the trait-level docs.
 }
 
+pub mod schema;
 pub mod sqlite;
