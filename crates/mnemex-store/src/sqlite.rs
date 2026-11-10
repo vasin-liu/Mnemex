@@ -43,6 +43,13 @@ pub enum StoreError {
         /// `PRAGMA user_version` read from the file.
         db_version: u32,
     },
+    /// The derived vector index refused the operation.
+    Vector {
+        /// What failed, in identifier-style English.
+        detail: String,
+        /// The underlying driver error, when there is one.
+        cause: Option<Box<dyn Error + Send + Sync>>,
+    },
 }
 
 impl fmt::Display for StoreError {
@@ -55,6 +62,7 @@ impl fmt::Display for StoreError {
             Self::Migration { db_version } => {
                 write!(f, "schema version {db_version} is ahead of this build")
             }
+            Self::Vector { detail, .. } => write!(f, "vector store error: {detail}"),
         }
     }
 }
@@ -63,6 +71,9 @@ impl Error for StoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Sqlite(err) => Some(err),
+            Self::Vector { cause, .. } => cause
+                .as_ref()
+                .map(|err| err.as_ref() as &(dyn Error + 'static)),
             Self::Fts5Unavailable { .. } | Self::Migration { .. } => None,
         }
     }

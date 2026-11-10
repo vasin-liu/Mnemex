@@ -10,7 +10,18 @@ publish = false
 workspace = true
 
 [dependencies]
-# Dependency red line: mnemex-store depends on mnemex-core plus exactly one
-# admitted third-party crate (rusqlite, MIT — see change add-sqlite-infra).
+# Dependency red line: mnemex-store depends on mnemex-core plus two admitted
+# third-party lineages — rusqlite (MIT, add-sqlite-infra) and lancedb
+# (Apache-2.0, 0.41.0, add-lancedb-spike). arrow, tokio, and futures below
+# are the public types and runtime of that lancedb release, not a third
+# admission. default features of lancedb 0.41.0 are empty; remote and the
+# cloud object-store features (aws, azure, gcs, oss, cos, huggingface,
+# openai, bedrock) stay off. lance-encoding (pulled by this lancedb
+# release) shells out to a system `protoc` during its build script.
 mnemex-core = { path = "../mnemex-core" }
 rusqlite = { version = "0.41.1", default-features = false, features = ["bundled"] }
+lancedb = { version = "0.41.0", default-features = false }
+arrow-array = "58"
+arrow-schema = "58"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1.23", default-features = false, features = ["rt-multi-thread", "sync", "io-util", "net", "time"] }

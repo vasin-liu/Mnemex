@@ -314,6 +314,30 @@ impl SqliteStore {
         Ok(())
     }
 
+    /// Lists every chunk row: id, content hash, and whether it is still pending.
+    pub fn list_chunks(&self) -> Result<Vec<(ChunkId, ContentHash, bool)>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT chunk_id, content_hash, pending FROM chunks")?;
+        let mut rows = stmt.query([])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id_bytes: Vec<u8> = row.get(0)?;
+            let hash_bytes: Vec<u8> = row.get(1)?;
+            let pending: i64 = row.get(2)?;
+            let chunk_id = ChunkId::from_slice(&id_bytes).map_err(|err| stored(err.to_string()))?;
+            let content_hash =
+                ContentHash::new(hash_bytes).map_err(|err| stored(err.to_string()))?;
+            let pending = match pending {
+                1 => true,
+                0 => false,
+                other => return Err(stored(format!("pending flag {other} is not 0 or 1"))),
+            };
+            out.push((chunk_id, content_hash, pending));
+        }
+        Ok(out)
+    }
+
     /// Reads the pending flag. `Ok(None)` when the chunk id is absent.
     pub fn chunk_pending(&self, chunk_id: &ChunkId) -> Result<Option<bool>, StoreError> {
         let pending: Option<i64> = self

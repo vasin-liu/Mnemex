@@ -1,26 +1,15 @@
 //! Storage abstractions for Mnemex.
 //!
-//! Dependency red line: `mnemex-store` depends on `mnemex-core` and the
-//! single admitted third-party crate `rusqlite` (MIT).
+//! Dependency red line: `mnemex-store` depends on `mnemex-core`, `rusqlite`
+//! (MIT), and `lancedb` 0.41.0 (Apache-2.0). Arrow, Tokio, and futures are
+//! the public API and runtime of that LanceDB release.
 //!
 //! SQLite is the source of truth (FTS5, knowledge objects, events, graph
 //! edges). The vector store is a derived index that can be dropped and fully
 //! rebuilt from SQLite at any time.
 
-/// Abstraction over vector store backends (LanceDB preferred, sqlite-vec
-/// fallback — ADR-001).
-///
-/// Contract highlights (ADR-002):
-/// - SQLite is the source of truth; the vector store is derived and
-///   fully rebuildable;
-/// - rows align with SQLite chunks by `chunk_id` + `content_hash`;
-/// - implementations must support exact deletes by that alignment key and
-///   full rebuilds; a dimension change equals a full re-embed (ADR-003).
-///
-/// Methods land with the `add-lancedb-spike` change.
-pub trait VectorStore {
-    // Intentionally empty placeholder; see the trait-level docs.
-}
-
 pub mod schema;
 pub mod sqlite;
+pub mod vector;
+
+pub use vector::{AlignmentRow, LanceVectorStore, VectorStore, catch_up, rebuild_from_sqlite};
