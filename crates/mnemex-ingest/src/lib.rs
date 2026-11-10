@@ -1,14 +1,18 @@
 //! Ingest pipeline: scan, parse, chunk.
 //!
-//! Dependency red line: `mnemex-ingest` depends only on `mnemex-core`;
-//! storage wiring lands with the Phase 0 pipeline change.
+//! Dependency red line: `mnemex-ingest` depends on `mnemex-core` and `sha2`.
+//! It does not depend on `mnemex-store`; the CLI writes scan results.
 //!
-//! Planned scope (Phase 0): file scanning, git analysis, four-language
-//! parsing (Java / Rust / TypeScript / Python) with explainable call-edge
-//! precision, and chunking with a 512-token cap (ADR-003). Scan pages
-//! without a text layer are marked and skipped, never routed to a vision
-//! model by default (ADR-012).
+//! Text and Markdown scanning is implemented. Code parsing (Java / Rust /
+//! TypeScript / Python) is still a placeholder. Scan pages without a text
+//! layer are marked and skipped, never routed to a vision model by default
+//! (ADR-012); PDF extraction is not in this crate yet.
+
+mod error;
 
 pub mod chunk;
 pub mod parse;
 pub mod scan;
+
+pub use error::IngestError;
+pub use scan::{TextChunk, TextSection, scan_text};

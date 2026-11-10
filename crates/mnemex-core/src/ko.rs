@@ -314,13 +314,16 @@ mod tests {
             });
         }
         assert_eq!(labels.len(), 5);
-        assert_eq!(labels, [
-            "code-symbol",
-            "design-decision",
-            "bug-record",
-            "document-section",
-            "commit-event"
-        ]);
+        assert_eq!(
+            labels,
+            [
+                "code-symbol",
+                "design-decision",
+                "bug-record",
+                "document-section",
+                "commit-event"
+            ]
+        );
     }
 
     #[test]
@@ -336,6 +339,9 @@ mod tests {
         };
         assert_eq!(symbol.container, None);
         let text = format!("{symbol:?}");
-        assert!(!text.contains("edges"), "no relation collections in the type");
+        assert!(
+            !text.contains("edges"),
+            "no relation collections in the type"
+        );
     }
 }

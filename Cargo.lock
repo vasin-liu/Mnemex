@@ -3547,6 +3547,7 @@ dependencies = [
  "mnemex-core",
  "mnemex-ingest",
  "mnemex-retrieval",
+ "mnemex-store",
 ]
 
 [[package]]
@@ -3558,6 +3559,7 @@ name = "mnemex-ingest"
 version = "0.1.0"
 dependencies = [
  "mnemex-core",
+ "sha2 0.11.1",
 ]
 
 [[package]]

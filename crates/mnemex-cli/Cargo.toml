@@ -14,7 +14,15 @@ workspace = true
 mnemex-core = { path = "../mnemex-core" }
 mnemex-ingest = { path = "../mnemex-ingest" }
 mnemex-retrieval = { path = "../mnemex-retrieval" }
+mnemex-store = { path = "../mnemex-store" }
 
 [[bin]]
 name = "mnemex"
 path = "src/main.rs"
+
+[dev-dependencies]
+# Integration tests open the database and re-scan the fixture. These crates
+# are not re-exported by the binary.
+mnemex-core = { path = "../mnemex-core" }
+mnemex-ingest = { path = "../mnemex-ingest" }
+mnemex-store = { path = "../mnemex-store" }

@@ -155,9 +155,18 @@ mod tests {
     #[test]
     fn score_bounds_reject_out_of_range() {
         for bad in [-0.1_f32, 1.1_f32, f32::NAN, f32::INFINITY] {
-            assert!(ModelConfidence::new(bad).is_err(), "model score {bad} must be rejected");
-            assert!(Confidence::new(bad).is_err(), "calibrated score {bad} must be rejected");
-            assert!(ContradictionScore::new(bad).is_err(), "contradiction {bad} must be rejected");
+            assert!(
+                ModelConfidence::new(bad).is_err(),
+                "model score {bad} must be rejected"
+            );
+            assert!(
+                Confidence::new(bad).is_err(),
+                "calibrated score {bad} must be rejected"
+            );
+            assert!(
+                ContradictionScore::new(bad).is_err(),
+                "contradiction {bad} must be rejected"
+            );
         }
         for good in [0.0_f32, 0.25, 1.0] {
             let raw = ModelConfidence::new(good).expect("in-range raw score");
@@ -183,7 +192,10 @@ mod tests {
     fn lifecycle_default_is_uncalibrated_and_unused() {
         let lc = Lifecycle::default();
         assert!(lc.model_confidence.is_none());
-        assert!(lc.confidence.is_none(), "calibration not landed: confidence stays absent");
+        assert!(
+            lc.confidence.is_none(),
+            "calibration not landed: confidence stays absent"
+        );
         assert_eq!(lc.usage_count, 0);
         assert!(lc.last_used.is_none());
         assert_eq!(lc.freshness, Freshness::Fresh);

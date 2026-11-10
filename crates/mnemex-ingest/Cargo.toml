@@ -10,6 +10,10 @@ publish = false
 workspace = true
 
 [dependencies]
-# Dependency red line: mnemex-ingest depends only on mnemex-core for now;
-# storage wiring lands with the Phase 0 pipeline change.
+# Dependency red line: mnemex-ingest depends on mnemex-core plus one admitted
+# third-party lineage — sha2 0.11.1 (MIT OR Apache-2.0, add-file-scan-and-text-chunks).
+# digest and cfg-if are the public trait and cfg helper of that release, not a
+# second admission. Storage wiring stays in the CLI so this crate does not
+# pull in lancedb.
 mnemex-core = { path = "../mnemex-core" }
+sha2 = "=0.11.1"

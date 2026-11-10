@@ -69,7 +69,7 @@ use crate::sqlite::{SqliteStore, StoreError};
 /// `user_version` after every entry in the migration list has been applied.
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 
-const MIGRATIONS: &[&str] = &[V1_DDL];
+const MIGRATIONS: &[&str] = &[V1_DDL, V2_DDL];
 
 const V1_DDL: &str = "
 CREATE TABLE knowledge_objects (
@@ -123,6 +123,31 @@ CREATE TABLE knowledge_edge (
 );
 CREATE INDEX idx_knowledge_edge_src ON knowledge_edge (src_ko);
 CREATE INDEX idx_knowledge_edge_dst ON knowledge_edge (dst_ko);
+";
+
+/// Adds the chunk body and an external-content FTS5 index over it.
+///
+/// `trigram` matches Chinese and English without a word segmenter.
+/// Queries shorter than 3 characters are rejected by that tokenizer.
+const V2_DDL: &str = "
+ALTER TABLE chunks ADD COLUMN body TEXT NOT NULL DEFAULT '';
+CREATE VIRTUAL TABLE chunks_fts USING fts5(
+    body,
+    content='chunks',
+    content_rowid='rowid',
+    tokenize='trigram'
+);
+CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN
+    INSERT INTO chunks_fts(rowid, body) VALUES (new.rowid, new.body);
+END;
+CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN
+    INSERT INTO chunks_fts(chunks_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+END;
+CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN
+    INSERT INTO chunks_fts(chunks_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+    INSERT INTO chunks_fts(rowid, body) VALUES (new.rowid, new.body);
+END;
+INSERT INTO chunks_fts(chunks_fts) VALUES ('rebuild');
 ";
 
 const INSERT_OBJECT: &str = "
@@ -300,18 +325,56 @@ impl SqliteStore {
         Ok((count, last_used.map(UnixMillis::new)))
     }
 
-    /// Inserts a chunk alignment row. `pending` defaults to waiting (1).
+    /// Inserts a chunk alignment row and its body. `pending` defaults to
+    /// waiting (1). The FTS index is maintained by the `chunks_ai` trigger.
     pub fn insert_chunk(
         &self,
         chunk_id: &ChunkId,
         ko: &KoId,
         content_hash: &ContentHash,
+        body: &str,
     ) -> Result<(), StoreError> {
         self.conn.execute(
-            "INSERT INTO chunks (chunk_id, ko_id, content_hash) VALUES (?1, ?2, ?3)",
-            params![chunk_id.as_bytes(), ko.as_bytes(), content_hash.as_bytes()],
+            "INSERT INTO chunks (chunk_id, ko_id, content_hash, body) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                chunk_id.as_bytes(),
+                ko.as_bytes(),
+                content_hash.as_bytes(),
+                body
+            ],
         )?;
         Ok(())
+    }
+
+    /// Reads the chunk body. `Ok(None)` when the chunk id is absent.
+    pub fn chunk_body(&self, chunk_id: &ChunkId) -> Result<Option<String>, StoreError> {
+        let body = self
+            .conn
+            .query_row(
+                "SELECT body FROM chunks WHERE chunk_id = ?1",
+                params![chunk_id.as_bytes()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(body)
+    }
+
+    /// Full-text search over chunk bodies. The trigram index requires a
+    /// query of at least 3 characters.
+    pub fn search_chunks(&self, query: &str) -> Result<Vec<ChunkId>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT chunks.chunk_id FROM chunks_fts \
+             JOIN chunks ON chunks.rowid = chunks_fts.rowid \
+             WHERE chunks_fts MATCH ?1",
+        )?;
+        let mut rows = stmt.query(params![query])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id_bytes: Vec<u8> = row.get(0)?;
+            let chunk_id = ChunkId::from_slice(&id_bytes).map_err(|err| stored(err.to_string()))?;
+            out.push(chunk_id);
+        }
+        Ok(out)
     }
 
     /// Lists every chunk row: id, content hash, and whether it is still pending.
@@ -857,5 +920,66 @@ mod tests {
             );
         }
         assert!(event_source_from_int(-1).is_err());
+    }
+
+    #[test]
+    fn v1_database_gains_an_empty_body_and_keeps_later_text() {
+        let dir = std::env::temp_dir().join(format!(
+            "mnemex-v1-upgrade-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let db = dir.join("mnemex.db");
+        let ko_id = KoId::new([0x41; 16]);
+        let old_id = ChunkId::new([0x42; 16]);
+        let new_id = ChunkId::new([0x43; 16]);
+        let old_hash = ContentHash::new(vec![1, 2, 3]).expect("hash");
+        let new_hash = ContentHash::new(vec![4, 5, 6]).expect("hash");
+        {
+            let conn = Connection::open(&db).expect("create v1 file");
+            conn.execute_batch(V1_DDL).expect("v1 ddl");
+            conn.pragma_update(None, "user_version", 1_i64)
+                .expect("mark v1");
+            conn.execute(
+                "INSERT INTO knowledge_objects (ko_id, kind, created_at, freshness) \
+                 VALUES (?1, 4, 1, 0)",
+                params![ko_id.as_bytes()],
+            )
+            .expect("v1 ko");
+            conn.execute(
+                "INSERT INTO chunks (chunk_id, ko_id, content_hash) VALUES (?1, ?2, ?3)",
+                params![old_id.as_bytes(), ko_id.as_bytes(), old_hash.as_bytes()],
+            )
+            .expect("v1 chunk");
+        }
+
+        let store = SqliteStore::open(&db).expect("upgrade");
+        let version: i64 = store.query_scalar("PRAGMA user_version").expect("version");
+        assert_eq!(version, 2);
+        assert_eq!(
+            store.chunk_body(&old_id).expect("old body"),
+            Some(String::new())
+        );
+        assert_eq!(
+            store.chunk_pending(&old_id).expect("old still pending"),
+            Some(true)
+        );
+        store
+            .insert_chunk(&new_id, &ko_id, &new_hash, "kept-body")
+            .expect("write body after upgrade");
+        drop(store);
+
+        let store = SqliteStore::open(&db).expect("reopen");
+        let version: i64 = store.query_scalar("PRAGMA user_version").expect("version");
+        assert_eq!(version, 2);
+        assert_eq!(
+            store.chunk_body(&new_id).expect("kept body"),
+            Some("kept-body".to_string())
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

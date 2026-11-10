@@ -284,7 +284,7 @@ fn ensure_chunk(
 ) -> Result<(), StoreError> {
     let rows = sqlite.list_chunks()?;
     match rows.iter().find(|(id, _, _)| id == chunk_id) {
-        None => sqlite.insert_chunk(chunk_id, ko, content_hash),
+        None => sqlite.insert_chunk(chunk_id, ko, content_hash, ""),
         Some((_, stored, _)) if stored == content_hash => Ok(()),
         Some(_) => Err(vector_detail(
             "committed chunk content hash does not match the vector key",

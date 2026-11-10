@@ -50,9 +50,7 @@ impl KoId {
 
     /// Creates an id from a slice; fails unless it holds exactly 16 bytes.
     pub fn from_slice(bytes: &[u8]) -> Result<Self, IdError> {
-        let arr: [u8; 16] = bytes
-            .try_into()
-            .map_err(|_| IdError::InvalidLength)?;
+        let arr: [u8; 16] = bytes.try_into().map_err(|_| IdError::InvalidLength)?;
         Ok(Self(arr))
     }
 
@@ -77,9 +75,7 @@ impl ChunkId {
     /// Creates a chunk id from a slice; fails unless it holds exactly
     /// 16 bytes.
     pub fn from_slice(bytes: &[u8]) -> Result<Self, IdError> {
-        let arr: [u8; 16] = bytes
-            .try_into()
-            .map_err(|_| IdError::InvalidLength)?;
+        let arr: [u8; 16] = bytes.try_into().map_err(|_| IdError::InvalidLength)?;
         Ok(Self(arr))
     }
 
@@ -161,7 +157,10 @@ mod tests {
     #[test]
     fn chunk_id_from_slice_rejects_wrong_length() {
         let short = [1u8; 15];
-        assert!(matches!(ChunkId::from_slice(&short), Err(IdError::InvalidLength)));
+        assert!(matches!(
+            ChunkId::from_slice(&short),
+            Err(IdError::InvalidLength)
+        ));
         let ok = [1u8; 16];
         let id = ChunkId::from_slice(&ok).expect("16 bytes must be accepted");
         assert_eq!(id.as_bytes(), ok);

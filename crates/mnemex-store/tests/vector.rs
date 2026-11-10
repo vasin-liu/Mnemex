@@ -152,7 +152,7 @@ fn catch_up_keeps_pending_when_the_vector_write_fails() {
     sqlite.insert_ko(&ko).expect("ko");
     let id = chunk(5);
     let hash = digest(&[5]);
-    sqlite.insert_chunk(&id, &ko_id, &hash).expect("chunk");
+    sqlite.insert_chunk(&id, &ko_id, &hash, "").expect("chunk");
     let err = catch_up(&sqlite, &index, &ko_id, &id, &hash, &[1.0, 0.0, 0.0])
         .expect_err("wrong dimension must fail the vector write");
     let msg = err.to_string();
@@ -174,10 +174,10 @@ fn rebuild_fills_an_empty_index_from_sqlite_rows() {
     let hash_a = digest(&[6]);
     let hash_b = digest(&[7]);
     sqlite
-        .insert_chunk(&id_a, &ko_id, &hash_a)
+        .insert_chunk(&id_a, &ko_id, &hash_a, "")
         .expect("chunk a");
     sqlite
-        .insert_chunk(&id_b, &ko_id, &hash_b)
+        .insert_chunk(&id_b, &ko_id, &hash_b, "")
         .expect("chunk b");
     let rows = [
         AlignmentRow {
@@ -217,7 +217,7 @@ fn rebuild_drops_a_key_that_sqlite_does_not_have() {
     let hash_kept = digest(&[8]);
     let hash_orphan = digest(&[9]);
     sqlite
-        .insert_chunk(&kept, &ko_id, &hash_kept)
+        .insert_chunk(&kept, &ko_id, &hash_kept, "")
         .expect("chunk");
     index
         .upsert(&orphan, &hash_orphan, &[0.0, 0.0, 1.0, 0.0])
@@ -250,7 +250,7 @@ fn rebuild_refuses_to_invent_a_missing_vector() {
     sqlite.insert_ko(&ko).expect("ko");
     let id = chunk(10);
     let hash = digest(&[10]);
-    sqlite.insert_chunk(&id, &ko_id, &hash).expect("chunk");
+    sqlite.insert_chunk(&id, &ko_id, &hash, "").expect("chunk");
     let err =
         rebuild_from_sqlite(&sqlite, &index, &[]).expect_err("empty index cannot invent a vector");
     let msg = err.to_string();

@@ -101,7 +101,12 @@ impl KnowledgeEvent {
     }
 
     fn new(kind: EventKind, ko: KoId, at: UnixMillis, source: EventSource) -> Self {
-        Self { kind, ko, at, source }
+        Self {
+            kind,
+            ko,
+            at,
+            source,
+        }
     }
 
     /// Returns the operation discriminant.
@@ -144,15 +149,30 @@ mod tests {
         // spec: 操作即事件 — each operation below exists only as an event
         // constructor; none of them mutates numeric lifecycle fields.
         let cases: Vec<(KnowledgeEvent, EventKind)> = vec![
-            (KnowledgeEvent::created(ko(), at(), EventSource::Rule), EventKind::Created),
-            (KnowledgeEvent::used(ko(), at(), EventSource::Rule), EventKind::Used),
-            (KnowledgeEvent::verified(ko(), at(), EventSource::User), EventKind::Verified),
-            (KnowledgeEvent::marked_stale(ko(), at(), EventSource::User), EventKind::MarkedStale),
+            (
+                KnowledgeEvent::created(ko(), at(), EventSource::Rule),
+                EventKind::Created,
+            ),
+            (
+                KnowledgeEvent::used(ko(), at(), EventSource::Rule),
+                EventKind::Used,
+            ),
+            (
+                KnowledgeEvent::verified(ko(), at(), EventSource::User),
+                EventKind::Verified,
+            ),
+            (
+                KnowledgeEvent::marked_stale(ko(), at(), EventSource::User),
+                EventKind::MarkedStale,
+            ),
             (
                 KnowledgeEvent::marked_contradictory(ko(), at(), EventSource::Model),
                 EventKind::MarkedContradictory,
             ),
-            (KnowledgeEvent::archived(ko(), at(), EventSource::User), EventKind::Archived),
+            (
+                KnowledgeEvent::archived(ko(), at(), EventSource::User),
+                EventKind::Archived,
+            ),
             (
                 KnowledgeEvent::feedback(ko(), at(), EventSource::User, true),
                 EventKind::Feedback { useful: true },

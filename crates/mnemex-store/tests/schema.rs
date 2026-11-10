@@ -346,7 +346,7 @@ fn chunks_default_pending_and_edges_require_endpoints() {
     let chunk_id = ChunkId::new([0x0c; 16]);
     let digest = hash(&[9, 9, 9]);
     store
-        .insert_chunk(&chunk_id, &src, &digest)
+        .insert_chunk(&chunk_id, &src, &digest, "")
         .expect("insert chunk");
     assert_eq!(
         store.chunk_pending(&chunk_id).expect("read pending"),
@@ -363,7 +363,7 @@ fn chunks_default_pending_and_edges_require_endpoints() {
     let missing = KoId::new([0xdd; 16]);
     assert!(
         store
-            .insert_chunk(&ChunkId::new([0x11; 16]), &missing, &digest)
+            .insert_chunk(&ChunkId::new([0x11; 16]), &missing, &digest, "")
             .is_err()
     );
     assert!(store.insert_edge(&missing, &dst, 1).is_err());
@@ -376,4 +376,55 @@ fn chunks_default_pending_and_edges_require_endpoints() {
         .query_scalar("SELECT COUNT(*) FROM knowledge_edge")
         .expect("edge count");
     assert_eq!(edges, 1);
+}
+
+fn insert_symbol(store: &SqliteStore, byte: u8) -> KoId {
+    let id = KoId::new([byte; 16]);
+    store
+        .insert_ko(&StoredKo::CodeSymbol(CodeSymbol {
+            core: core(byte, Lifecycle::default(), SourceRefs::default()),
+            name: "section".to_string(),
+            symbol_kind: SymbolKind::Class,
+            container: None,
+        }))
+        .expect("ko");
+    id
+}
+
+#[test]
+fn chunk_body_roundtrips_and_empty_body_stays_pending() {
+    let (_dir, store) = open();
+    let ko = insert_symbol(&store, 0x31);
+    let filled = ChunkId::new([0x32; 16]);
+    store
+        .insert_chunk(&filled, &ko, &hash(b"filled"), "alpha beta gamma")
+        .expect("insert body");
+    assert_eq!(
+        store.chunk_body(&filled).expect("read body"),
+        Some("alpha beta gamma".to_string())
+    );
+
+    let empty = ChunkId::new([0x33; 16]);
+    store
+        .insert_chunk(&empty, &ko, &hash(b"empty"), "")
+        .expect("insert empty");
+    assert_eq!(
+        store.chunk_body(&empty).expect("read empty"),
+        Some(String::new())
+    );
+    assert_eq!(store.chunk_pending(&empty).expect("pending"), Some(true));
+}
+
+#[test]
+fn fts_hits_a_word_in_the_body_and_misses_an_absent_word() {
+    let (_dir, store) = open();
+    let ko = insert_symbol(&store, 0x34);
+    let id = ChunkId::new([0x35; 16]);
+    store
+        .insert_chunk(&id, &ko, &hash(b"fts"), "alpha beta gamma")
+        .expect("insert");
+    let hits = store.search_chunks("gamma").expect("hit");
+    assert_eq!(hits, vec![id]);
+    let misses = store.search_chunks("zzzabsent").expect("miss");
+    assert!(misses.is_empty());
 }
