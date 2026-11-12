@@ -182,6 +182,54 @@ pub enum StoredKo {
     CommitEvent(CommitEvent),
 }
 
+/// One document section currently stored, with the path text left as written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredDocumentSection {
+    /// Object id.
+    pub id: KoId,
+    /// `path` column, with `/` separators, not rewritten through `PathBuf`.
+    pub path: String,
+    /// Section content hash.
+    pub content_hash: ContentHash,
+    /// Chunk ids belonging to this object.
+    pub chunk_ids: Vec<ChunkId>,
+}
+
+/// A chunk body to insert during a document sync.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncChunk {
+    /// Chunk id.
+    pub id: ChunkId,
+    /// Chunk content hash.
+    pub content_hash: ContentHash,
+    /// Chunk text.
+    pub body: String,
+}
+
+/// A document section that is not stored yet.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewDocumentSection {
+    /// The object row, including its creation time and content hash.
+    pub object: StoredKo,
+    /// Chunks inserted with the object.
+    pub chunks: Vec<SyncChunk>,
+}
+
+/// Deletes, hash updates, and inserts applied in one transaction.
+#[derive(Debug, Clone, Default)]
+pub struct DocumentSync {
+    /// Document sections to remove, with their edges, chunks, and events.
+    pub delete_objects: Vec<KoId>,
+    /// Chunks to remove from sections that stay.
+    pub delete_chunks: Vec<ChunkId>,
+    /// New content hashes for sections that stay.
+    pub hash_updates: Vec<(KoId, ContentHash)>,
+    /// Chunks to add under objects that already exist.
+    pub insert_chunks: Vec<(KoId, SyncChunk)>,
+    /// New document sections. Each gets one rule-sourced creation event.
+    pub insert_sections: Vec<NewDocumentSection>,
+}
+
 /// Applies any migrations newer than the database, or refuses a database
 /// that is newer than this binary.
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
@@ -208,37 +256,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
 impl SqliteStore {
     /// Inserts one knowledge object. The id must not already be present.
     pub fn insert_ko(&self, ko: &StoredKo) -> Result<(), StoreError> {
-        let row = object_row(ko)?;
-        let params: [&dyn rusqlite::types::ToSql; 26] = [
-            &row.ko_id,
-            &row.kind,
-            &row.created_at,
-            &row.model_confidence,
-            &row.confidence,
-            &row.usage_count,
-            &row.last_used,
-            &row.freshness,
-            &row.contradiction_score,
-            &row.content_hash,
-            &row.commit_sha,
-            &row.path,
-            &row.symbol_name,
-            &row.symbol_kind,
-            &row.symbol_container,
-            &row.problem,
-            &row.diagnosis,
-            &row.resolution,
-            &row.symptom,
-            &row.root_cause,
-            &row.fix,
-            &row.title,
-            &row.heading_path,
-            &row.commit_event_sha,
-            &row.commit_message,
-            &row.authored_at,
-        ];
-        self.conn.execute(INSERT_OBJECT, params.as_slice())?;
-        Ok(())
+        insert_object(&self.conn, ko)
     }
 
     /// Reads one knowledge object by id. `Ok(None)` when the id is absent.
@@ -259,22 +277,12 @@ impl SqliteStore {
 
     /// Appends one event and returns its `seq`.
     ///
-    /// This is the only write path for `knowledge_events`. There is no
-    /// update and no delete.
+    /// While the object stays, this is the only write path for
+    /// `knowledge_events`: there is no update and no delete-by-seq. Removing
+    /// a document section deletes that object's event rows in the same
+    /// transaction.
     pub fn append_event(&self, event: &KnowledgeEvent) -> Result<i64, StoreError> {
-        let (kind, useful) = event_kind_to_cols(event.kind());
-        self.conn.execute(
-            "INSERT INTO knowledge_events (ko_id, kind, at, source, useful) \
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                event.ko().as_bytes(),
-                kind,
-                event.at().get(),
-                event_source_to_int(event.source()),
-                useful,
-            ],
-        )?;
-        Ok(self.conn.last_insert_rowid())
+        append_event_row(&self.conn, event)
     }
 
     /// Returns events for `ko` in append order (`seq` ascending).
@@ -334,16 +342,7 @@ impl SqliteStore {
         content_hash: &ContentHash,
         body: &str,
     ) -> Result<(), StoreError> {
-        self.conn.execute(
-            "INSERT INTO chunks (chunk_id, ko_id, content_hash, body) VALUES (?1, ?2, ?3, ?4)",
-            params![
-                chunk_id.as_bytes(),
-                ko.as_bytes(),
-                content_hash.as_bytes(),
-                body
-            ],
-        )?;
-        Ok(())
+        insert_chunk_row(&self.conn, chunk_id, ko, content_hash, body)
     }
 
     /// Reads the chunk body. `Ok(None)` when the chunk id is absent.
@@ -439,6 +438,218 @@ impl SqliteStore {
         )?;
         Ok(())
     }
+
+    /// Reads the current document sections and applies `build`'s plan in one
+    /// transaction. The path text is the stored column, not a `PathBuf`
+    /// display form. Schema version is unchanged.
+    pub fn sync_documents<F>(&self, build: F) -> Result<(), StoreError>
+    where
+        F: FnOnce(&[StoredDocumentSection]) -> DocumentSync,
+    {
+        let tx = self.conn.unchecked_transaction()?;
+        let sections = list_document_sections(&tx)?;
+        let plan = build(&sections);
+        for chunk_id in &plan.delete_chunks {
+            delete_chunk_row(&tx, chunk_id)?;
+        }
+        for ko in &plan.delete_objects {
+            delete_document_section(&tx, ko)?;
+        }
+        for (ko, content_hash) in &plan.hash_updates {
+            update_document_hash(&tx, ko, content_hash)?;
+        }
+        for (ko, chunk) in &plan.insert_chunks {
+            insert_chunk_row(&tx, &chunk.id, ko, &chunk.content_hash, &chunk.body)?;
+        }
+        for section in &plan.insert_sections {
+            if section.object.kind() != Kind::DocumentSection {
+                return Err(stored("sync can insert only document sections"));
+            }
+            insert_object(&tx, &section.object)?;
+            let core = section.object.core();
+            append_event_row(
+                &tx,
+                &KnowledgeEvent::created(core.id, core.created_at, EventSource::Rule),
+            )?;
+            for chunk in &section.chunks {
+                insert_chunk_row(&tx, &chunk.id, &core.id, &chunk.content_hash, &chunk.body)?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+fn insert_object(conn: &Connection, ko: &StoredKo) -> Result<(), StoreError> {
+    let row = object_row(ko)?;
+    let params: [&dyn rusqlite::types::ToSql; 26] = [
+        &row.ko_id,
+        &row.kind,
+        &row.created_at,
+        &row.model_confidence,
+        &row.confidence,
+        &row.usage_count,
+        &row.last_used,
+        &row.freshness,
+        &row.contradiction_score,
+        &row.content_hash,
+        &row.commit_sha,
+        &row.path,
+        &row.symbol_name,
+        &row.symbol_kind,
+        &row.symbol_container,
+        &row.problem,
+        &row.diagnosis,
+        &row.resolution,
+        &row.symptom,
+        &row.root_cause,
+        &row.fix,
+        &row.title,
+        &row.heading_path,
+        &row.commit_event_sha,
+        &row.commit_message,
+        &row.authored_at,
+    ];
+    conn.execute(INSERT_OBJECT, params.as_slice())?;
+    Ok(())
+}
+
+fn append_event_row(conn: &Connection, event: &KnowledgeEvent) -> Result<i64, StoreError> {
+    let (kind, useful) = event_kind_to_cols(event.kind());
+    conn.execute(
+        "INSERT INTO knowledge_events (ko_id, kind, at, source, useful) \
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            event.ko().as_bytes(),
+            kind,
+            event.at().get(),
+            event_source_to_int(event.source()),
+            useful,
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+fn insert_chunk_row(
+    conn: &Connection,
+    chunk_id: &ChunkId,
+    ko: &KoId,
+    content_hash: &ContentHash,
+    body: &str,
+) -> Result<(), StoreError> {
+    conn.execute(
+        "INSERT INTO chunks (chunk_id, ko_id, content_hash, body) VALUES (?1, ?2, ?3, ?4)",
+        params![
+            chunk_id.as_bytes(),
+            ko.as_bytes(),
+            content_hash.as_bytes(),
+            body
+        ],
+    )?;
+    Ok(())
+}
+
+fn list_document_sections(conn: &Connection) -> Result<Vec<StoredDocumentSection>, StoreError> {
+    let mut stmt = conn.prepare(
+        "SELECT ko_id, path, content_hash FROM knowledge_objects WHERE kind = ?1 ORDER BY ko_id",
+    )?;
+    let mut rows = stmt.query(params![kind_to_int(Kind::DocumentSection)])?;
+    let mut pending = Vec::new();
+    while let Some(row) = rows.next()? {
+        let id_bytes: Vec<u8> = row.get(0)?;
+        let path: Option<String> = row.get(1)?;
+        let hash_bytes: Option<Vec<u8>> = row.get(2)?;
+        pending.push((id_bytes, path, hash_bytes));
+    }
+    drop(rows);
+    drop(stmt);
+
+    let mut out = Vec::with_capacity(pending.len());
+    for (id_bytes, path, hash_bytes) in pending {
+        let id = KoId::from_slice(&id_bytes).map_err(|err| stored(err.to_string()))?;
+        let path = path.ok_or_else(|| stored("document section has no path"))?;
+        let hash_bytes =
+            hash_bytes.ok_or_else(|| stored("document section has no content hash"))?;
+        let content_hash = ContentHash::new(hash_bytes).map_err(|err| stored(err.to_string()))?;
+        let mut chunk_stmt =
+            conn.prepare("SELECT chunk_id FROM chunks WHERE ko_id = ?1 ORDER BY chunk_id")?;
+        let mut chunk_rows = chunk_stmt.query(params![id.as_bytes()])?;
+        let mut chunk_ids = Vec::new();
+        while let Some(chunk_row) = chunk_rows.next()? {
+            let bytes: Vec<u8> = chunk_row.get(0)?;
+            chunk_ids.push(ChunkId::from_slice(&bytes).map_err(|err| stored(err.to_string()))?);
+        }
+        out.push(StoredDocumentSection {
+            id,
+            path,
+            content_hash,
+            chunk_ids,
+        });
+    }
+    Ok(out)
+}
+
+fn delete_chunk_row(conn: &Connection, chunk_id: &ChunkId) -> Result<(), StoreError> {
+    let changed = conn.execute(
+        "DELETE FROM chunks WHERE chunk_id = ?1",
+        params![chunk_id.as_bytes()],
+    )?;
+    if changed == 0 {
+        return Err(stored("chunk not found"));
+    }
+    Ok(())
+}
+
+fn delete_document_section(conn: &Connection, id: &KoId) -> Result<(), StoreError> {
+    let kind: Option<i64> = conn
+        .query_row(
+            "SELECT kind FROM knowledge_objects WHERE ko_id = ?1",
+            params![id.as_bytes()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if kind != Some(kind_to_int(Kind::DocumentSection)) {
+        return Err(stored("document section not found"));
+    }
+    conn.execute(
+        "DELETE FROM knowledge_edge WHERE src_ko = ?1 OR dst_ko = ?1",
+        params![id.as_bytes()],
+    )?;
+    conn.execute(
+        "DELETE FROM chunks WHERE ko_id = ?1",
+        params![id.as_bytes()],
+    )?;
+    conn.execute(
+        "DELETE FROM knowledge_events WHERE ko_id = ?1",
+        params![id.as_bytes()],
+    )?;
+    let changed = conn.execute(
+        "DELETE FROM knowledge_objects WHERE ko_id = ?1 AND kind = ?2",
+        params![id.as_bytes(), kind_to_int(Kind::DocumentSection)],
+    )?;
+    if changed == 0 {
+        return Err(stored("document section not found"));
+    }
+    Ok(())
+}
+
+fn update_document_hash(
+    conn: &Connection,
+    id: &KoId,
+    content_hash: &ContentHash,
+) -> Result<(), StoreError> {
+    let changed = conn.execute(
+        "UPDATE knowledge_objects SET content_hash = ?1 WHERE ko_id = ?2 AND kind = ?3",
+        params![
+            content_hash.as_bytes(),
+            id.as_bytes(),
+            kind_to_int(Kind::DocumentSection)
+        ],
+    )?;
+    if changed == 0 {
+        return Err(stored("document section not found"));
+    }
+    Ok(())
 }
 
 fn kind_to_int(kind: Kind) -> i64 {

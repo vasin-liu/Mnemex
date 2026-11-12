@@ -9,10 +9,12 @@
 //! (ADR-012); PDF extraction is not in this crate yet.
 
 mod error;
+mod reconcile;
 
 pub mod chunk;
 pub mod parse;
 pub mod scan;
 
 pub use error::IngestError;
-pub use scan::{TextChunk, TextSection, scan_text};
+pub use reconcile::{ChunkInsert, SectionHashUpdate, StoredSection, TextSyncPlan, plan_text_sync};
+pub use scan::{TextChunk, TextScan, TextSection, scan_text};

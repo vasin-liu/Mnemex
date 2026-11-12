@@ -47,11 +47,28 @@ pub struct TextSection {
     pub chunks: Vec<TextChunk>,
 }
 
+/// Result of one text scan.
+///
+/// `present_paths` lists every text file that was seen, including empty and
+/// non-UTF-8 files. `undecodable_paths` is the subset that was not valid
+/// UTF-8. Both use `/` separators. Empty and undecodable files produce no
+/// sections.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextScan {
+    /// Sections from files that decoded as non-empty UTF-8.
+    pub sections: Vec<TextSection>,
+    /// Relative paths of text files that exist under the root.
+    pub present_paths: Vec<String>,
+    /// Relative paths that exist but are not valid UTF-8.
+    pub undecodable_paths: Vec<String>,
+}
+
 /// Recursively scans `root` for `.md`, `.markdown`, and `.txt` files.
 ///
 /// `.git`, `target`, and `node_modules` path segments are skipped. A file
-/// that is not valid UTF-8 is skipped. An empty file produces no section.
-pub fn scan_text(root: &Path) -> Result<Vec<TextSection>, IngestError> {
+/// that is not valid UTF-8 is recorded and skipped. An empty file produces
+/// no section.
+pub fn scan_text(root: &Path) -> Result<TextScan, IngestError> {
     let meta = std::fs::metadata(root).map_err(|source| IngestError::RootUnavailable {
         path: root.to_path_buf(),
         source,
@@ -68,16 +85,20 @@ pub fn scan_text(root: &Path) -> Result<Vec<TextSection>, IngestError> {
     files.sort();
 
     let mut sections = Vec::new();
+    let mut present_paths = Vec::new();
+    let mut undecodable_paths = Vec::new();
     for relative in files {
         let Some(relative_path) = portable(&relative) else {
             continue;
         };
+        present_paths.push(relative_path.clone());
         let full = root.join(&relative);
         let bytes = std::fs::read(&full).map_err(|source| IngestError::Unreadable {
             path: full.clone(),
             source,
         })?;
         let Ok(text) = String::from_utf8(bytes) else {
+            undecodable_paths.push(relative_path);
             continue;
         };
         if text.is_empty() {
@@ -118,7 +139,11 @@ pub fn scan_text(root: &Path) -> Result<Vec<TextSection>, IngestError> {
             });
         }
     }
-    Ok(sections)
+    Ok(TextScan {
+        sections,
+        present_paths,
+        undecodable_paths,
+    })
 }
 
 fn collect(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), IngestError> {

@@ -6,12 +6,11 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use mnemex_core::event::{EventSource, KnowledgeEvent};
 use mnemex_core::ids::SourceRefs;
 use mnemex_core::ko::{DocumentSection, KoCore};
 use mnemex_core::lifecycle::Lifecycle;
-use mnemex_ingest::{TextSection, scan_text};
-use mnemex_store::schema::StoredKo;
+use mnemex_ingest::{StoredSection, TextScan, TextSection, plan_text_sync, scan_text};
+use mnemex_store::schema::{DocumentSync, NewDocumentSection, StoredKo, SyncChunk};
 use mnemex_store::sqlite::{SqliteStore, StoreError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -44,8 +43,8 @@ fn index(args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let sections = match scan_text(&dir) {
-        Ok(sections) => sections,
+    let report = match scan_text(&dir) {
+        Ok(report) => report,
         Err(err) => {
             eprintln!("mnemex: {err}");
             return ExitCode::FAILURE;
@@ -58,7 +57,7 @@ fn index(args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    if let Err(err) = write_sections(&store, &sections) {
+    if let Err(err) = sync_sections(&store, &report) {
         eprintln!("mnemex: {err}");
         return ExitCode::FAILURE;
     }
@@ -91,37 +90,72 @@ fn parse_index(args: &[String]) -> Result<(PathBuf, PathBuf), String> {
     }
 }
 
-fn write_sections(store: &SqliteStore, sections: &[TextSection]) -> Result<(), StoreError> {
-    for section in sections {
-        if store.read_ko(&section.id)?.is_none() {
-            let object = StoredKo::DocumentSection(DocumentSection {
-                core: KoCore {
-                    id: section.id,
-                    refs: SourceRefs {
-                        content_hash: Some(section.content_hash.clone()),
-                        commit: None,
-                        path: Some(PathBuf::from(&section.relative_path)),
-                    },
-                    lifecycle: Lifecycle::default(),
-                    created_at: section.created_at,
+fn sync_sections(store: &SqliteStore, report: &TextScan) -> Result<(), StoreError> {
+    store.sync_documents(|stored| {
+        let stored_sections: Vec<StoredSection> = stored
+            .iter()
+            .map(|section| StoredSection {
+                id: section.id,
+                relative_path: section.path.clone(),
+                content_hash: section.content_hash.clone(),
+                chunk_ids: section.chunk_ids.clone(),
+            })
+            .collect();
+        let plan = plan_text_sync(report, &stored_sections);
+        DocumentSync {
+            delete_objects: plan.delete_objects,
+            delete_chunks: plan.delete_chunks,
+            hash_updates: plan
+                .hash_updates
+                .into_iter()
+                .map(|update| (update.id, update.content_hash))
+                .collect(),
+            insert_chunks: plan
+                .insert_chunks
+                .into_iter()
+                .map(|insert| {
+                    (
+                        insert.ko_id,
+                        SyncChunk {
+                            id: insert.chunk.id,
+                            content_hash: insert.chunk.content_hash,
+                            body: insert.chunk.body,
+                        },
+                    )
+                })
+                .collect(),
+            insert_sections: plan.insert_sections.into_iter().map(new_section).collect(),
+        }
+    })
+}
+
+fn new_section(section: TextSection) -> NewDocumentSection {
+    let chunks = section
+        .chunks
+        .into_iter()
+        .map(|chunk| SyncChunk {
+            id: chunk.id,
+            content_hash: chunk.content_hash,
+            body: chunk.body,
+        })
+        .collect();
+    NewDocumentSection {
+        object: StoredKo::DocumentSection(DocumentSection {
+            core: KoCore {
+                id: section.id,
+                refs: SourceRefs {
+                    content_hash: Some(section.content_hash),
+                    commit: None,
+                    path: Some(PathBuf::from(section.relative_path)),
                 },
-                title: section.title.clone(),
-                heading_path: section.heading_path.clone(),
-            });
-            store.insert_ko(&object)?;
-            store.append_event(&KnowledgeEvent::created(
-                section.id,
-                section.created_at,
-                EventSource::Rule,
-            ))?;
-        }
-        for chunk in &section.chunks {
-            if store.chunk_pending(&chunk.id)?.is_none() {
-                store.insert_chunk(&chunk.id, &section.id, &chunk.content_hash, &chunk.body)?;
-            }
-        }
+                lifecycle: Lifecycle::default(),
+                created_at: section.created_at,
+            },
+            title: section.title,
+            heading_path: section.heading_path,
+        }),
+        chunks,
     }
-    Ok(())
 }
 
 fn print_help() {

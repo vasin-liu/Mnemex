@@ -40,9 +40,7 @@ pub(crate) fn sections_from_text(file_stem: &str, text: &str) -> Vec<DraftSectio
             body.push_str(line);
             continue;
         }
-        if !in_fence
-            && let Some((level, heading)) = parse_atx(content)
-        {
+        if !in_fence && let Some((level, heading)) = parse_atx(content) {
             push_section(&mut out, &title, &heading_path, &body);
             body.clear();
             while stack.last().is_some_and(|(lvl, _)| *lvl >= level) {

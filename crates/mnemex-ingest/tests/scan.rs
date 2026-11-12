@@ -52,7 +52,7 @@ fn scans_text_extensions_and_skips_the_rest() {
     write(dir.path(), "UPPER.MD", b"upper\n");
     write(dir.path(), "code.rs", b"fn main() {}\n");
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     let paths: Vec<&str> = sections.iter().map(|s| s.relative_path.as_str()).collect();
     assert!(paths.contains(&"notes.md"));
     assert!(paths.contains(&"plain.txt"));
@@ -69,7 +69,7 @@ fn skips_denied_directories() {
     write(dir.path(), "target/out.txt", b"build\n");
     write(dir.path(), "node_modules/pkg.md", b"dep\n");
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     let paths: Vec<&str> = sections.iter().map(|s| s.relative_path.as_str()).collect();
     assert_eq!(paths, vec!["keep.txt"]);
 }
@@ -80,7 +80,7 @@ fn invalid_utf8_does_not_fail_the_scan() {
     write(dir.path(), "bad.txt", &[0xff, 0xfe, 0x00]);
     write(dir.path(), "good.txt", b"good text\n");
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     assert_eq!(sections.len(), 1);
     assert_eq!(sections[0].relative_path, "good.txt");
     assert_eq!(sections[0].chunks[0].body, "good text\n");
@@ -100,7 +100,7 @@ child body\n\
 after\n";
     write(dir.path(), "doc.md", md.as_bytes());
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     let parent = sections
         .iter()
         .find(|s| s.heading_path == "Parent")
@@ -129,7 +129,7 @@ fn long_body_splits_on_the_scalar_cap_and_on_newlines() {
     write(dir.path(), "hard.txt", hard.as_bytes());
     write(dir.path(), "wrapped.txt", wrapped.as_bytes());
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     let hard_section = sections
         .iter()
         .find(|s| s.relative_path == "hard.txt")
@@ -171,7 +171,7 @@ fn empty_file_produces_no_chunk() {
     write(dir.path(), "empty.txt", b"");
     write(dir.path(), "full.txt", b"full\n");
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     assert!(sections.iter().all(|s| s.relative_path != "empty.txt"));
     assert!(
         sections
@@ -182,12 +182,40 @@ fn empty_file_produces_no_chunk() {
 }
 
 #[test]
+fn report_lists_empty_paths_and_undecodable_files() {
+    let dir = TempDir::new("report");
+    write(dir.path(), "empty.txt", b"");
+    write(dir.path(), "sub/blank.txt", b"");
+    write(dir.path(), "bad.txt", &[0xff, 0xfe, 0xfd]);
+    write(dir.path(), "notes.md", b"# Title\nhello\n");
+
+    let report = scan_text(dir.path()).expect("scan");
+    assert!(report.present_paths.iter().any(|p| p == "empty.txt"));
+    assert!(report.present_paths.iter().any(|p| p == "sub/blank.txt"));
+    assert!(report.present_paths.iter().any(|p| p == "bad.txt"));
+    assert!(report.present_paths.iter().any(|p| p == "notes.md"));
+    assert_eq!(report.undecodable_paths, vec!["bad.txt".to_string()]);
+    assert!(
+        report
+            .sections
+            .iter()
+            .all(|section| section.relative_path != "empty.txt")
+    );
+    assert!(
+        report
+            .sections
+            .iter()
+            .any(|section| section.relative_path == "notes.md")
+    );
+}
+
+#[test]
 fn chunk_hashes_are_sha256_and_differ_when_bodies_differ() {
     let dir = TempDir::new("hash");
     write(dir.path(), "abc.txt", b"abc");
     write(dir.path(), "abd.txt", b"abd");
 
-    let sections = scan_text(dir.path()).expect("scan");
+    let sections = scan_text(dir.path()).expect("scan").sections;
     let abc = sections
         .iter()
         .find(|s| s.relative_path == "abc.txt")
